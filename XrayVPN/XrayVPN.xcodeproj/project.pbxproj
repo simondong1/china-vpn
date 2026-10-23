@@ -1,0 +1,194 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+		A1A1A1A1A1A1A1A1A1A1A1A1 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		A2A2A2A2A2A2A2A2A2A2A2A2 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		A3A3A3A3A3A3A3A3A3A3A3A3 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		A4A4A4A4A4A4A4A4A4A4A4A4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A5A5A5A5A5A5A5A5A5A5A5A5 /* XrayVPN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrayVPN.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1B1B1B1B1B1B1B1B1B1B1B1 /* XrayVPN */ = {
+			isa = PBXGroup;
+			children = (
+				A2A2A2A2A2A2A2A2A2A2A2A2 /* AppDelegate.h */,
+				A1A1A1A1A1A1A1A1A1A1A1A1 /* AppDelegate.m */,
+				A3A3A3A3A3A3A3A3A3A3A3A3 /* main.m */,
+				A4A4A4A4A4A4A4A4A4A4A4A4 /* Info.plist */,
+			);
+			path = XrayVPN;
+			sourceTree = "<group>";
+		};
+		B2B2B2B2B2B2B2B2B2B2B2B2 = {
+			isa = PBXGroup;
+			children = (
+				B1B1B1B1B1B1B1B1B1B1B1B1 /* XrayVPN */,
+				B3B3B3B3B3B3B3B3B3B3B3B3 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B3B3B3B3B3B3B3B3B3B3B3B3 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A5A5A5A5A5A5A5A5A5A5A5A5 /* XrayVPN.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C1C1C1C1C1C1C1C1C1C1C1C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1D1D1D1D1D1D1D1D1D1D1D1 /* AppDelegate.m in Sources */,
+				D2D2D2D2D2D2D2D2D2D2D2D2 /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D1D1D1D1D1D1D1D1D1D1D1D1 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = A1A1A1A1A1A1A1A1A1A1A1A1 /* AppDelegate.m */; };
+		D2D2D2D2D2D2D2D2D2D2D2D2 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = A3A3A3A3A3A3A3A3A3A3A3A3 /* main.m */; };
+		E1E1E1E1E1E1E1E1E1E1E1E1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1F1F1F1F1F1F1F1F1F1F1F1 /* XrayVPN */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F2F2F2F2F2F2F2F2F2F2F2F2;
+			buildPhases = (
+				C1C1C1C1C1C1C1C1C1C1C1C1 /* Sources */,
+				E1E1E1E1E1E1E1E1E1E1E1E1 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = XrayVPN;
+			productName = XrayVPN;
+			productReference = A5A5A5A5A5A5A5A5A5A5A5A5 /* XrayVPN.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F2F2F2F2F2F2F2F2F2F2F2F2 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F3F3F3F3F3F3F3F3F3F3F3F3 /* Debug */,
+				F4F4F4F4F4F4F4F4F4F4F4F4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F3F3F3F3F3F3F3F3F3F3F3F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = XrayVPN/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		F4F4F4F4F4F4F4F4F4F4F4F4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = XrayVPN/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+		G1G1G1G1G1G1G1G1G1G1G1G1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1540;
+			};
+			buildConfigurationList = G2G2G2G2G2G2G2G2G2G2G2G2;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = B2B2B2B2B2B2B2B2B2B2B2B2;
+			productRefGroup = B3B3B3B3B3B3B3B3B3B3B3B3 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F1F1F1F1F1F1F1F1F1F1F1F1 /* XrayVPN */,
+			);
+		};
+		G2G2G2G2G2G2G2G2G2G2G2G2 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				G3G3G3G3G3G3G3G3G3G3G3G3 /* Debug */,
+				G4G4G4G4G4G4G4G4G4G4G4G4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		G3G3G3G3G3G3G3G3G3G3G3G3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		G4G4G4G4G4G4G4G4G4G4G4G4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+	};
+	rootObject = G1G1G1G1G1G1G1G1G1G1G1G1 /* Project object */;
+}
