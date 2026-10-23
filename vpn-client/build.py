@@ -115,7 +115,17 @@ def generate_xcode_project():
     """Generate Xcode project from project.yml."""
     print("\n==> Generating Xcode project")
     run(["xcodegen", "generate"], cwd=REPO_ROOT)
-    print("✓ Generated VPN.xcodeproj")
+
+    # Verify project was created
+    project_path = REPO_ROOT / "VPN.xcodeproj"
+    if not project_path.exists():
+        print(f"ERROR: VPN.xcodeproj not found at {project_path}", file=sys.stderr)
+        print(f"Contents of {REPO_ROOT}:", file=sys.stderr)
+        for item in REPO_ROOT.iterdir():
+            print(f"  {item.name}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"✓ Generated VPN.xcodeproj at {project_path}")
 
 def build_app(xray_binary):
     """Build the app with xcodebuild."""
