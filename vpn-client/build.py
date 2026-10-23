@@ -30,11 +30,14 @@ XRAY_VERSION = "v26.10.21"
 def run(cmd, cwd=None, check=True):
     """Run command and print output."""
     print(f"$ {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=cwd, check=check, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=cwd, check=False, text=True)
     if result.stdout:
         print(result.stdout)
     if result.stderr:
         print(result.stderr, file=sys.stderr)
+    if check and result.returncode != 0:
+        print(f"Error: command exited with code {result.returncode}", file=sys.stderr)
+        sys.exit(result.returncode)
     return result
 
 def check_requirements():
@@ -74,15 +77,33 @@ def build_xray():
         "GOARCH": "amd64"
     })
 
-    run(["go", "build", "-o", "../xray_amd64",
-         "-trimpath", "-ldflags", "-s -w",
-         "./main"], cwd=XRAY_DIR / "main", check=True)
+    print("Building Xray for amd64...")
+    result = subprocess.run(
+        ["go", "build", "-o", str(BUILD_DIR / "xray_amd64"),
+         "-trimpath", "-ldflags", "-s -w", "./main"],
+        cwd=XRAY_DIR / "main",
+        env=env,
+        capture_output=False,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"Failed to build xray_amd64 (exit code {result.returncode})", file=sys.stderr)
+        sys.exit(1)
 
     # Build for Apple Silicon
     env["GOARCH"] = "arm64"
-    run(["go", "build", "-o", "../xray_arm64",
-         "-trimpath", "-ldflags", "-s -w",
-         "./main"], cwd=XRAY_DIR / "main", check=True)
+    print("Building Xray for arm64...")
+    result = subprocess.run(
+        ["go", "build", "-o", str(BUILD_DIR / "xray_arm64"),
+         "-trimpath", "-ldflags", "-s -w", "./main"],
+        cwd=XRAY_DIR / "main",
+        env=env,
+        capture_output=False,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"Failed to build xray_arm64 (exit code {result.returncode})", file=sys.stderr)
+        sys.exit(1)
 
     # Create universal binary
     xray_universal = BUILD_DIR / "xray"
