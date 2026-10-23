@@ -1,0 +1,78 @@
+name: Build XrayVPN
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'XrayVPN/**'
+      - '.github/workflows/build-xrayvpn.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build app
+      working-directory: XrayVPN
+      run: |
+        xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/XrayVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+        mkdir -p build/XrayVPN
+        cp -R build/XrayVPN.xcarchive/Products/Applications/XrayVPN.app build/XrayVPN/
+
+        cat > build/XrayVPN/README.txt << 'EOF'
+        XrayVPN for macOS
+
+        Installation:
+        1. Drag XrayVPN.app to your Applications folder
+        2. First launch: Right-click the app → Open (to bypass Gatekeeper)
+        3. The VPN icon appears in your menu bar (top-right corner)
+        4. Click the icon → Settings
+        5. Paste your vless:// link from out/vpn-link.txt
+        6. Click Save
+        7. Click the icon → Connect
+
+        When connected, all your Mac's traffic routes through your US VPN server automatically.
+        Works system-wide like ExpressVPN - all apps use the VPN.
+
+        Click Disconnect in the menu to stop.
+        EOF
+
+        hdiutil create -volname "XrayVPN" -srcfolder build/XrayVPN -ov -format UDZO XrayVPN.dmg
+
+    - name: Get short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Upload DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: XrayVPN-macOS-${{ steps.vars.outputs.sha_short }}
+        path: XrayVPN/XrayVPN.dmg
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: XrayVPN/XrayVPN.dmg
+        body: |
+          XrayVPN - macOS VPN Menu Bar App
+
+          **Installation:**
+          1. Download XrayVPN.dmg
+          2. Open and drag XrayVPN.app to Applications
+          3. Right-click → Open (first time only, to bypass Gatekeeper)
+          4. Icon appears in menu bar
+          5. Click icon → Settings → paste your vless:// link
+          6. Click icon → Connect
+
+          **Features:**
+          - Menu bar icon (like ExpressVPN)
+          - One-click Connect/Disconnect
+          - System-wide VPN (all apps use it automatically)
+          - Easy setup: just paste your vless:// link
+
+          Your server is at 52.34.245.131. Get your vless:// link from out/vpn-link.txt
