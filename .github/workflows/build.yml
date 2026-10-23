@@ -22,7 +22,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        brew install xcodegen create-dmg
+        brew install create-dmg
+        # Install XcodeGen from source at version 2.38.0 (generates format 56, compatible with Xcode 15.4)
+        git clone --depth 1 --branch 2.38.0 https://github.com/yonaskolb/XcodeGen.git /tmp/xcodegen
+        cd /tmp/xcodegen
+        make install PREFIX=/usr/local
 
     - name: Build
       working-directory: vpn-client
