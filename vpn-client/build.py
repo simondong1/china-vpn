@@ -143,7 +143,22 @@ def build_app(xray_binary):
         sys.exit(1)
 
     print(f"Project file verified at: {project_file}")
-    run(["ls", "-la", str(project_file)], cwd=REPO_ROOT)
+
+    # Check project file structure
+    import subprocess
+    result = subprocess.run(["find", str(project_file), "-type", "f"],
+                          capture_output=True, text=True)
+    print("Project file contents:")
+    for line in result.stdout.strip().split('\n')[:20]:
+        print(f"  {line}")
+
+    # Verify project.pbxproj exists
+    pbxproj = project_file / "project.pbxproj"
+    if not pbxproj.exists():
+        print(f"ERROR: project.pbxproj missing inside {project_file}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"✓ project.pbxproj exists ({pbxproj.stat().st_size} bytes)")
 
     # Build parameters
     scheme = "VPN"
