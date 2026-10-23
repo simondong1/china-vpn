@@ -1,0 +1,62 @@
+name: Build Simple VPN
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'simple-vpn/**'
+      - '.github/workflows/build-simple.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Build
+      working-directory: simple-vpn
+      run: |
+        GOOS=darwin GOARCH=amd64 go build -o vpn-amd64 main.go
+        GOOS=darwin GOARCH=arm64 go build -o vpn-arm64 main.go
+        lipo -create -output vpn vpn-amd64 vpn-arm64
+        chmod +x vpn
+        zip vpn-macos.zip vpn README.md
+
+    - name: Get short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: vpn-macos-${{ steps.vars.outputs.sha_short }}
+        path: simple-vpn/vpn-macos.zip
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: simple-vpn/vpn-macos.zip
+        body: |
+          Simple command-line VPN client for macOS
+
+          **Installation:**
+          1. Download vpn-macos.zip
+          2. Extract: `unzip vpn-macos.zip`
+          3. Make executable: `chmod +x vpn`
+          4. Import config: `./vpn import < your-vless-link.txt`
+          5. Connect: `./vpn connect`
+
+          **Usage:**
+          - `./vpn connect` - Start VPN (SOCKS5 proxy on localhost:10808)
+          - `./vpn disconnect` - Stop VPN
+          - `./vpn status` - Check connection status
+
+          Configure your browser to use SOCKS5 proxy 127.0.0.1:10808
