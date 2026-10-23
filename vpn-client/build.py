@@ -146,7 +146,7 @@ def build_app(xray_binary):
     if team_id and cert_name:
         print(f"✓ Signing with team {team_id}")
         build_cmd.extend([
-            "CODE_SIGN_STYLE=Manual",
+            f"CODE_SIGN_STYLE=Manual",
             f"DEVELOPMENT_TEAM={team_id}",
             f"CODE_SIGN_IDENTITY={cert_name}"
         ])
