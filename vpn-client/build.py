@@ -180,7 +180,7 @@ def build_app(xray_binary):
     if team_id and cert_name:
         print(f"✓ Signing with team {team_id}")
         build_cmd.extend([
-            f"CODE_SIGN_STYLE=Manual",
+            "CODE_SIGN_STYLE=Manual",
             f"DEVELOPMENT_TEAM={team_id}",
             f"CODE_SIGN_IDENTITY={cert_name}"
         ])
@@ -191,6 +191,16 @@ def build_app(xray_binary):
             "CODE_SIGNING_REQUIRED=NO",
             "CODE_SIGNING_ALLOWED=NO"
         ])
+
+    # Try validating project first
+    print("Validating project with xcodebuild -list...")
+    validate_cmd = ["xcodebuild", "-list", "-project", str(project_file)]
+    result = subprocess.run(validate_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"ERROR: Project validation failed:", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+    print(result.stdout[:500])  # Show first 500 chars of project info
 
     run(build_cmd, cwd=REPO_ROOT)
 
