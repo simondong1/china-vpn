@@ -136,6 +136,15 @@ def build_app(xray_binary):
     resources_dir.mkdir(exist_ok=True)
     shutil.copy(xray_binary, resources_dir / "xray")
 
+    # Debug: verify project file before building
+    project_file = REPO_ROOT / "VPN.xcodeproj"
+    if not project_file.exists():
+        print(f"ERROR: Project file missing at {project_file}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Project file verified at: {project_file}")
+    run(["ls", "-la", str(project_file)], cwd=REPO_ROOT)
+
     # Build parameters
     scheme = "VPN"
     configuration = "Release"
@@ -146,7 +155,7 @@ def build_app(xray_binary):
 
     build_cmd = [
         "xcodebuild",
-        "-project", "VPN.xcodeproj",
+        "-project", str(project_file),
         "-scheme", scheme,
         "-configuration", configuration,
         "-archivePath", str(archive_path),
