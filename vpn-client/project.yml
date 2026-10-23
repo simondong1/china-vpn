@@ -4,7 +4,7 @@ options:
   deploymentTarget:
     macOS: "12.0"
   developmentLanguage: en
-  xcodeVersion: "15.0"
+  xcodeVersion: "14.0"
   usesTabs: false
   indentWidth: 2
   tabWidth: 2
