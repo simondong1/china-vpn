@@ -5,6 +5,7 @@ options:
     macOS: "12.0"
   developmentLanguage: en
   xcodeVersion: "15.0"
+  minimumXcodeGenVersion: "2.39"
 settings:
   MARKETING_VERSION: "1.0.0"
   CURRENT_PROJECT_VERSION: 1
