@@ -80,11 +80,9 @@ def build_xray():
     print("Building Xray for amd64...")
     result = subprocess.run(
         ["go", "build", "-o", str(BUILD_DIR / "xray_amd64"),
-         "-trimpath", "-ldflags", "-s -w", "./main"],
+         "-trimpath", "-ldflags", "-s -w"],
         cwd=XRAY_DIR / "main",
-        env=env,
-        capture_output=False,
-        text=True
+        env=env
     )
     if result.returncode != 0:
         print(f"Failed to build xray_amd64 (exit code {result.returncode})", file=sys.stderr)
@@ -95,11 +93,9 @@ def build_xray():
     print("Building Xray for arm64...")
     result = subprocess.run(
         ["go", "build", "-o", str(BUILD_DIR / "xray_arm64"),
-         "-trimpath", "-ldflags", "-s -w", "./main"],
+         "-trimpath", "-ldflags", "-s -w"],
         cwd=XRAY_DIR / "main",
-        env=env,
-        capture_output=False,
-        text=True
+        env=env
     )
     if result.returncode != 0:
         print(f"Failed to build xray_arm64 (exit code {result.returncode})", file=sys.stderr)
