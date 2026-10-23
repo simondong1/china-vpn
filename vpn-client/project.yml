@@ -19,6 +19,7 @@ targets:
     platform: macOS
     sources:
       - path: VPN
+      - path: VPNExtension/VPNConfig.swift
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.vpn.client
       INFOPLIST_FILE: VPN/Info.plist
