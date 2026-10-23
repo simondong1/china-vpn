@@ -22,7 +22,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        brew install xcodegen create-dmg
+        brew install create-dmg
+        brew install xcodegen@2.39.1 || brew install https://raw.githubusercontent.com/Homebrew/homebrew-core/8b9d6d688f483a0f33fcfc93d433de501b9c3513/Formula/xcodegen.rb
 
     - name: Build
       working-directory: vpn-client
