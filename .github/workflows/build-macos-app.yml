@@ -1,0 +1,76 @@
+name: Build macOS VPN App
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'macos-vpn-app/**'
+      - '.github/workflows/build-macos-app.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install XcodeGen
+      run: brew install xcodegen
+
+    - name: Generate Xcode project
+      working-directory: macos-vpn-app
+      run: xcodegen generate
+
+    - name: Build app
+      working-directory: macos-vpn-app
+      run: |
+        xcodebuild -project VPN.xcodeproj -scheme VPN -configuration Release -archivePath build/VPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+        mkdir -p build/VPN
+        cp -R build/VPN.xcarchive/Products/Applications/VPN.app build/VPN/
+
+        cat > build/VPN/README.txt << 'EOF'
+        VPN for macOS
+
+        Installation:
+        1. Drag VPN.app to your Applications folder
+        2. First launch: Right-click the app → Open (to bypass Gatekeeper)
+        3. The VPN icon appears in your menu bar
+        4. Click the icon → Settings to configure your server
+        5. Paste your vless:// link or enter details manually
+        6. Click Connect to route all traffic through your VPN
+
+        When connected, all your Mac's traffic goes through the VPN automatically.
+        Click Disconnect to restore normal internet.
+        EOF
+
+        hdiutil create -volname "VPN" -srcfolder build/VPN -ov -format UDZO VPN.dmg
+
+    - name: Get short SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Upload DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: VPN-macOS-${{ steps.vars.outputs.sha_short }}
+        path: macos-vpn-app/VPN.dmg
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: macos-vpn-app/VPN.dmg
+        body: |
+          macOS VPN App with menu bar GUI
+
+          **Installation:**
+          1. Download VPN.dmg
+          2. Open and drag VPN.app to Applications
+          3. Right-click → Open (first time only)
+          4. VPN icon appears in menu bar
+          5. Click icon → Settings → paste your vless:// link
+          6. Click Connect
+
+          Routes all Mac traffic through your VPN when connected.
