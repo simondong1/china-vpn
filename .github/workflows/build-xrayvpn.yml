@@ -79,7 +79,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: XrayVPN-xcode-diagnostics-${{ github.run_id }}
-        path: XrayVPN/build
+        path: XrayVPN/build/xcodebuild.log
         if-no-files-found: warn
 
     - name: Get short SHA
