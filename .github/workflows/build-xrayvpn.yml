@@ -23,7 +23,8 @@ jobs:
       working-directory: XrayVPN
       run: |
         set -euo pipefail
-        xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/XrayVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        mkdir -p build
+        xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/XrayVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild.log
 
         mkdir -p build/XrayVPN
         cp -R build/XrayVPN.xcarchive/Products/Applications/XrayVPN.app build/XrayVPN/
@@ -59,6 +60,14 @@ jobs:
         EOF
 
         hdiutil create -volname "XrayVPN" -srcfolder build/XrayVPN -ov -format UDZO XrayVPN.dmg
+
+    - name: Upload Xcode diagnostics
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: XrayVPN-xcode-diagnostics-${{ github.run_id }}
+        path: XrayVPN/build
+        if-no-files-found: warn
 
     - name: Get short SHA
       id: vars
