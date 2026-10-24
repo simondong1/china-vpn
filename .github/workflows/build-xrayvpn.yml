@@ -61,6 +61,19 @@ jobs:
 
         hdiutil create -volname "XrayVPN" -srcfolder build/XrayVPN -ov -format UDZO XrayVPN.dmg
 
+    - name: Report Xcode failure
+      if: failure()
+      shell: bash
+      run: |
+        if [ -f XrayVPN/build/xcodebuild.log ]; then
+          summary=$(grep -E 'error:|BUILD FAILED|scheme|project' XrayVPN/build/xcodebuild.log | tail -n 30 | tr '\n' ' ' | cut -c 1-6000)
+          if [ -n "$summary" ]; then
+            echo "::error title=Xcode build output::$summary"
+          else
+            echo "::error title=Xcode build output::Xcode failed without a matching diagnostic line. See the job artifact."
+          fi
+        fi
+
     - name: Upload Xcode diagnostics
       if: always()
       uses: actions/upload-artifact@v4
