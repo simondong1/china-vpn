@@ -344,8 +344,8 @@ static NSInteger const kSocksPort = 10808;
     [output enumerateLinesUsingBlock:^(NSString *line, BOOL *stop) {
         NSArray *parts = [line componentsSeparatedByString:@": "];
         if (parts.count < 2) return;
-        NSString *key = parts[0];
-        NSString *value = [line substringFromIndex:parts[0].length + 2];
+        NSString *key = [parts[0] isKindOfClass:[NSString class]] ? (NSString *)parts[0] : @"";
+        NSString *value = [line substringFromIndex:key.length + 2];
         if ([key isEqualToString:@"Enabled"]) result[@"enabled"] = @([value isEqualToString:@"Yes"]);
         if ([key isEqualToString:@"Server"]) result[@"server"] = value;
         if ([key isEqualToString:@"Port"]) result[@"port"] = value;
@@ -398,8 +398,10 @@ static NSInteger const kSocksPort = 10808;
     for (NSURLQueryItem *item in components.queryItems) {
         if (item.name.length > 0 && item.value) query[item.name.lowercaseString] = item.value;
     }
-    NSString *security = query[@"security"] ?: @"reality";
-    NSString *network = (query[@"type"] ?: @"tcp").lowercaseString;
+    NSString *security = [query[@"security"] isKindOfClass:[NSString class]] ? (NSString *)query[@"security"] : @"reality";
+    id rawNetwork = query[@"type"];
+    NSString *networkValue = [rawNetwork isKindOfClass:[NSString class]] ? (NSString *)rawNetwork : @"tcp";
+    NSString *network = networkValue.lowercaseString;
     NSString *sni = query[@"sni"];
     NSString *publicKey = query[@"pbk"];
     NSString *shortID = query[@"sid"];
