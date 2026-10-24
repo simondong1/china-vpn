@@ -3,10 +3,14 @@ name: Build XrayVPN
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
     paths:
       - 'XrayVPN/**'
       - '.github/workflows/build-xrayvpn.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -18,25 +22,38 @@ jobs:
     - name: Build app
       working-directory: XrayVPN
       run: |
+        set -euo pipefail
         xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/XrayVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
         mkdir -p build/XrayVPN
         cp -R build/XrayVPN.xcarchive/Products/Applications/XrayVPN.app build/XrayVPN/
+
+        XRAY_VERSION=v26.10.21
+        mkdir -p build/xray-arm64 build/xray-x86_64 build/XrayVPN/XrayVPN.app/Contents/Resources
+        curl --fail --location "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-macos-arm64-v8a.zip" --output build/xray-arm64.zip
+        curl --fail --location "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-macos-64.zip" --output build/xray-x86_64.zip
+        unzip -oq build/xray-arm64.zip -d build/xray-arm64
+        unzip -oq build/xray-x86_64.zip -d build/xray-x86_64
+        install -m 755 build/xray-arm64/xray build/XrayVPN/XrayVPN.app/Contents/Resources/xray-arm64
+        install -m 755 build/xray-x86_64/xray build/XrayVPN/XrayVPN.app/Contents/Resources/xray-x86_64
+        cp build/xray-arm64/LICENSE build/XrayVPN/XrayVPN.app/Contents/Resources/Xray-LICENSE
+        test -x build/XrayVPN/XrayVPN.app/Contents/Resources/xray-arm64
+        test -x build/XrayVPN/XrayVPN.app/Contents/Resources/xray-x86_64
 
         cat > build/XrayVPN/README.txt << 'EOF'
         XrayVPN for macOS
 
         Installation:
         1. Drag XrayVPN.app to your Applications folder
-        2. First launch: Right-click the app → Open (to bypass Gatekeeper)
-        3. The VPN icon appears in your menu bar (top-right corner)
-        4. Click the icon → Settings
+        2. First launch: Control-click the app and choose Open
+        3. The XrayVPN icon appears in your menu bar
+        4. Click the icon, then choose Settings
         5. Paste your vless:// link from out/vpn-link.txt
         6. Click Save
-        7. Click the icon → Connect
+        7. Click the icon and choose Connect
 
-        When connected, all your Mac's traffic routes through your US VPN server automatically.
-        Works system-wide like ExpressVPN - all apps use the VPN.
+        This client uses the macOS SOCKS proxy for apps that honor system proxy settings.
+        It is not a Network Extension packet tunnel, so some apps and UDP traffic may bypass it.
 
         Click Disconnect in the menu to stop.
         EOF
@@ -64,15 +81,17 @@ jobs:
           **Installation:**
           1. Download XrayVPN.dmg
           2. Open and drag XrayVPN.app to Applications
-          3. Right-click → Open (first time only, to bypass Gatekeeper)
-          4. Icon appears in menu bar
-          5. Click icon → Settings → paste your vless:// link
-          6. Click icon → Connect
+          3. Control-click the app and choose Open the first time
+          4. Click the menu bar icon, then Settings, and paste your vless:// link
+          5. Choose Connect and approve the macOS administrator prompt
 
           **Features:**
-          - Menu bar icon (like ExpressVPN)
+          - Menu bar status and one-click controls
           - One-click Connect/Disconnect
-          - System-wide VPN (all apps use it automatically)
-          - Easy setup: just paste your vless:// link
+          - macOS SOCKS proxy for applications that honor system proxy settings
+          - Restores previous SOCKS proxy settings when disconnected
+          - Easy setup: paste your vless:// link
+
+          This uses the macOS system SOCKS proxy and is not a Network Extension packet tunnel. Apps that ignore the system proxy and UDP traffic may bypass it.
 
           Your server is at 52.34.245.131. Get your vless:// link from out/vpn-link.txt

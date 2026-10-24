@@ -1,64 +1,28 @@
-# China VPN Setup
+# XrayVPN
 
-Personal VPN infrastructure for bypassing the Great Firewall.
+This repository contains an AWS Lightsail Xray server and a small macOS menu bar client.
 
-## Components
+The server uses VLESS + REALITY over TCP 443. `deploy.sh` provisions it and writes the generated connection link to `out/vpn-link.txt`.
 
-- **AWS Lightsail server** in Oregon running Xray with VLESS+REALITY
-- **macOS VPN app** with menu bar UI in `macos-vpn-app/`
-- **Deployment scripts** for server provisioning
+## macOS client
 
-## Server
+Build the `XrayVPN` target in `XrayVPN/XrayVPN.xcodeproj` on macOS 12 or later. The GitHub Actions workflow builds an unsigned DMG on macOS 14 and bundles Xray for both Apple silicon and Intel Macs.
 
-The server is already running:
-- IP: 52.34.245.131
-- Cost: $5/month for 500 GB traffic
-- Protocol: VLESS+REALITY disguised as aws.amazon.com
+1. Open the app. It runs in the menu bar.
+2. Open **Settings...**, paste the `vless://` link from `out/vpn-link.txt`, click **Import**, then **Save**.
+3. Choose **Connect** from the menu bar item and approve the macOS administrator prompt.
+4. Choose **Disconnect** to stop Xray and restore the proxy settings that were active before connecting.
 
-### Deploy new server
+The release DMG includes matching Xray binaries for Apple silicon and Intel. A locally built app downloads its matching binary on first connect. Xray validates the generated configuration before startup, and the imported link is stored in `~/Library/Application Support/XrayVPN`.
 
-```bash
-bash deploy.sh
-```
+The client uses the macOS SOCKS proxy on port 10808 for each enabled network service. This covers applications that honor system proxy settings; it is not a Network Extension packet tunnel and cannot transparently route applications that ignore system proxies.
 
-### Destroy server
+## Server scripts
 
-```bash
-bash destroy.sh
-```
-
-## macOS VPN App
-
-Download the latest DMG from [Releases](../../releases).
-
-### Installation
-
-1. Download `VPN.dmg`
-2. Open and drag VPN.app to Applications
-3. First launch: Right-click → Open (to bypass Gatekeeper)
-4. VPN icon appears in your menu bar
-5. Click icon → Settings
-6. Paste your vless:// link from `out/vpn-link.txt`
-7. Click Save, then Connect
-
-**When connected:** All your Mac's traffic automatically routes through your US server. System-wide VPN like ExpressVPN.
-
-**To disconnect:** Click the menu bar icon → Disconnect
-
-### Features
-
-- Menu bar icon (network icon when connected, slashed when disconnected)
-- One-click connect/disconnect
-- Settings window to paste vless:// links
-- Automatic system proxy configuration
-- Works with all apps (browsers, terminal, etc.)
-
-## Files
-
-```
-deploy.sh              Create/update server
-destroy.sh             Delete server and stop billing
-server-setup.sh        Server configuration (runs on VM)
-macos-vpn-app/         macOS menu bar VPN app with GUI
-out/                   Generated: connection link, QR code, server IP
+```text
+deploy.sh        Create or update the Lightsail server
+destroy.sh       Delete the server and stop billing
+server-setup.sh  Install and configure Xray on the VM
+out/             Generated link, QR code, and server metadata
+XrayVPN/         macOS menu bar app
 ```
