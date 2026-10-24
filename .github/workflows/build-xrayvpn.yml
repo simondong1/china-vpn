@@ -66,7 +66,7 @@ jobs:
       shell: bash
       run: |
         if [ -f XrayVPN/build/xcodebuild.log ]; then
-          summary=$(grep -E 'error:|BUILD FAILED|scheme|project' XrayVPN/build/xcodebuild.log | tail -n 30 | tr '\n' ' ' | cut -c 1-6000)
+          summary=$(grep -iE 'error:|fatal|ld:|undefined|build failed|command .* failed' XrayVPN/build/xcodebuild.log | tail -n 40 | tr '\n' ' ' | cut -c 1-6000)
           if [ -n "$summary" ]; then
             echo "::error title=Xcode build output::$summary"
           else
