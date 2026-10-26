@@ -40,8 +40,11 @@ jobs:
         install -m 755 build/xray-arm64/xray build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
         install -m 755 build/xray-x86_64/xray build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
         cp build/xray-arm64/LICENSE build/DongVPN/DongVPN.app/Contents/Resources/Xray-LICENSE
+        cp build/xray-arm64/geoip.dat build/xray-arm64/geosite.dat build/DongVPN/DongVPN.app/Contents/Resources/
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
+        test -s build/DongVPN/DongVPN.app/Contents/Resources/geoip.dat
+        test -s build/DongVPN/DongVPN.app/Contents/Resources/geosite.dat
 
         if [ -n "${DONGVPN_VLESS_LINK:-}" ]; then
           case "$DONGVPN_VLESS_LINK" in
@@ -56,7 +59,8 @@ jobs:
           echo "::warning::DONGVPN_VLESS_LINK is not set; this build asks for a vless:// link on first launch."
         fi
 
-        test "$(find build/DongVPN -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -eq 1
+        ln -s /Applications build/DongVPN/Applications
+        test "$(find build/DongVPN -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -eq 2
         test -d build/DongVPN/DongVPN.app
 
         hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
@@ -96,25 +100,31 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
-        files: XrayVPN/DongVPN.dmg
+        files: |
+          XrayVPN/DongVPN.dmg
+          install.sh
         body: |
           DongVPN - macOS VPN Menu Bar App
 
-          **Installation:**
-          1. Download DongVPN.dmg
-          2. Open it and drag DongVPN.app to Applications
-          3. Open DongVPN. The first time, macOS blocks it: open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open). This is needed only once.
-          4. Choose Connect when DongVPN offers to connect
-          5. DongVPN checks the tunnel and displays the public IP routed through it
+          **Fastest install (no security prompts):** open Terminal and paste
+          ```
+          curl -fsSL https://github.com/simondong1/china-vpn/releases/latest/download/install.sh | bash
+          ```
+          DongVPN installs, connects, and opens at login from then on. Run the same command to update.
+
+          **Or install from the DMG:**
+          1. Download DongVPN.dmg, open it, and drag DongVPN to Applications
+          2. Open DongVPN. The first time, macOS blocks it: open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open). This is needed only once.
+          3. DongVPN connects automatically
 
           **Features:**
-          - Server configuration built in; nothing to paste
-          - No password prompts when connecting or disconnecting on administrator accounts
-          - Menu bar status and one-click Connect/Disconnect
-          - macOS SOCKS proxy for applications that honor system proxy settings
-          - Restores previous SOCKS proxy settings when disconnected
-          - Tunnel verification and routed public IP display
-          - Email support option when the connection fails
+          - Connects automatically on launch and at login; nothing to paste or configure
+          - No password prompts on administrator accounts
+          - Reconnects automatically after network loss, sleep, or an Xray crash
+          - Local network and mainland China sites stay direct; everything else goes through the VPN
+          - Menu bar status with one-click Connect/Disconnect and Open at Login
+          - Restores previous proxy settings when disconnected or quit
+          - Email support option when a connection you start fails
 
           This uses the macOS system SOCKS proxy and is not a Network Extension packet tunnel. Apps that ignore the system proxy and UDP traffic may bypass it.
 

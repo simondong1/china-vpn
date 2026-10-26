@@ -1,17 +1,25 @@
 #import "AppDelegate.h"
+#import <ServiceManagement/ServiceManagement.h>
 #import <arpa/inet.h>
+#import <signal.h>
 #import <sys/utsname.h>
 #import <sys/xattr.h>
 
 static NSString * const kXrayVersion = @"v26.10.21";
 static NSInteger const kSocksPort = 10808;
-static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
+static NSInteger const kMaxXrayRestarts = 3;
+static NSString * const kWantsConnectionKey = @"WantsConnection";
+static NSString * const kDidSetUpLoginItemKey = @"DidSetUpLoginItem";
+static NSString * const kDidShowWelcomeKey = @"DidShowWelcome";
+static NSString * const kMovedArgument = @"--moved-to-applications";
 
-@interface AppDelegate ()
+@interface AppDelegate () <NSMenuDelegate>
 @property (nonatomic, strong) NSStatusItem *statusBarItem;
 @property (nonatomic, strong) NSMenuItem *statusMenuItem;
 @property (nonatomic, strong) NSMenuItem *toggleMenuItem;
+@property (nonatomic, strong) NSMenuItem *loginItemMenuItem;
 @property (nonatomic, strong) NSMenuItem *configurationMenuItem;
+@property (nonatomic, strong) NSPopover *statusPopover;
 @property (nonatomic, strong) NSTask *xrayTask;
 @property (nonatomic, strong) NSWindow *settingsWindow;
 @property (nonatomic, strong) NSTextField *linkField;
@@ -19,15 +27,24 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 @property (nonatomic, strong) NSButton *configurationSaveButton;
 @property (nonatomic, strong) NSTextField *settingsStatusField;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *proxyBackups;
+@property (nonatomic, strong) NSMutableArray *signalSources;
 @property (nonatomic, copy) NSString *publicIP;
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isTransitioning;
+@property (nonatomic, assign) BOOL isWaitingToRetry;
+@property (nonatomic, assign) NSInteger connectGeneration;
+@property (nonatomic, assign) NSInteger retryAttempt;
+@property (nonatomic, assign) NSInteger xrayRestartCount;
 - (void)updateConfigurationLabels;
 @end
 
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    if ([self moveToApplicationsIfNeeded]) return;
+    [self installTerminationSignalHandlers];
+    [self stopStaleXray];
+
     self.proxyBackups = [NSMutableDictionary dictionary];
     self.statusBarItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     self.statusBarItem.button.image = [self statusImageConnected:NO];
@@ -35,6 +52,7 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
     self.statusBarItem.button.toolTip = @"DongVPN";
 
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@"DongVPN"];
+    menu.delegate = self;
     self.statusMenuItem = [menu addItemWithTitle:@"Disconnected" action:nil keyEquivalent:@""];
     self.statusMenuItem.enabled = NO;
     [menu addItem:[NSMenuItem separatorItem]];
@@ -42,6 +60,10 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
     self.toggleMenuItem = [menu addItemWithTitle:@"Connect" action:@selector(toggleConnection:) keyEquivalent:@""];
     self.toggleMenuItem.target = self;
     [menu addItem:[NSMenuItem separatorItem]];
+
+    self.loginItemMenuItem = [menu addItemWithTitle:@"Open at Login" action:@selector(toggleLoginItem:) keyEquivalent:@""];
+    self.loginItemMenuItem.target = self;
+    self.loginItemMenuItem.hidden = ![self supportsLoginItem];
 
     self.configurationMenuItem = [menu addItemWithTitle:@"Add VPN Configuration..." action:@selector(showConfigurationPrompt:) keyEquivalent:@""];
     self.configurationMenuItem.target = self;
@@ -64,44 +86,185 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
         }
     }
 
+    __weak AppDelegate *weakSelf = self;
+    [[NSWorkspace sharedWorkspace].notificationCenter addObserverForName:NSWorkspaceDidWakeNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        AppDelegate *strongSelf = weakSelf;
+        if (strongSelf.isWaitingToRetry) [strongSelf connectAutomatically:YES announce:NO];
+    }];
+
+    [self setUpLoginItemOnFirstLaunch];
+
     if ([self savedLink].length == 0) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self showConfigurationPrompt:nil];
         });
-    } else if (![[NSUserDefaults standardUserDefaults] boolForKey:kDidOfferConnectKey]) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self offerFirstConnect];
-        });
+    } else if ([self wantsConnection]) {
+        BOOL firstLaunch = ![[NSUserDefaults standardUserDefaults] boolForKey:kDidShowWelcomeKey];
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kDidShowWelcomeKey];
+        [self connectAutomatically:YES announce:firstLaunch];
     }
 }
 
-- (void)offerFirstConnect {
-    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kDidOfferConnectKey];
-    [NSApp activateIgnoringOtherApps:YES];
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"DongVPN is ready";
-    alert.informativeText = @"Connect now? DongVPN stays in the menu bar so you can connect or disconnect anytime.";
-    [alert addButtonWithTitle:@"Connect"];
-    [alert addButtonWithTitle:@"Later"];
-    if ([alert runModal] == NSAlertFirstButtonReturn) [self connect];
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+    if ([self savedLink].length == 0) {
+        [self showConfigurationPrompt:nil];
+    } else if (!self.isConnected && !self.isTransitioning && !self.isWaitingToRetry) {
+        [self setWantsConnection:YES];
+        [self connectAutomatically:NO announce:YES];
+    } else {
+        [self showStatusPopover];
+    }
+    return NO;
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
     [self disconnectSilently];
 }
 
-- (IBAction)toggleConnection:(id)sender {
-    if (self.isTransitioning) return;
-    self.isConnected ? [self disconnect] : [self connect];
+- (BOOL)moveToApplicationsIfNeeded {
+    NSString *bundlePath = [NSBundle mainBundle].bundlePath;
+    NSString *userApplications = [NSHomeDirectory() stringByAppendingPathComponent:@"Applications"];
+    if ([bundlePath hasPrefix:@"/Applications/"] || [bundlePath hasPrefix:[userApplications stringByAppendingString:@"/"]]) return NO;
+    if ([[NSProcessInfo processInfo].arguments containsObject:kMovedArgument]) return NO;
+
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSString *folder = [fileManager isWritableFileAtPath:@"/Applications"] ? @"/Applications" : userApplications;
+    [fileManager createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *destination = [folder stringByAppendingPathComponent:bundlePath.lastPathComponent];
+
+    for (NSRunningApplication *app in [NSRunningApplication runningApplicationsWithBundleIdentifier:[NSBundle mainBundle].bundleIdentifier]) {
+        if ([app isEqual:[NSRunningApplication currentApplication]]) continue;
+        pid_t pid = app.processIdentifier;
+        [app terminate];
+        for (int i = 0; i < 50 && kill(pid, 0) == 0; i++) [NSThread sleepForTimeInterval:0.1];
+    }
+    [fileManager removeItemAtPath:destination error:NULL];
+    if (![fileManager copyItemAtPath:bundlePath toPath:destination error:NULL]) return NO;
+
+    // Gatekeeper translocates quarantined apps on every launch, which would break the login item.
+    NSTask *unquarantine = [self taskWithLaunchPath:@"/usr/bin/xattr" arguments:@[@"-d", @"-r", @"com.apple.quarantine", destination]];
+    [unquarantine launch];
+    [unquarantine waitUntilExit];
+    NSTask *open = [self taskWithLaunchPath:@"/usr/bin/open" arguments:@[@"-n", destination, @"--args", kMovedArgument]];
+    [open launch];
+    [open waitUntilExit];
+    if (open.terminationStatus != 0) return NO;
+    [NSApp terminate:nil];
+    return YES;
 }
 
-- (void)connect {
+- (void)installTerminationSignalHandlers {
+    self.signalSources = [NSMutableArray array];
+    for (NSNumber *signalNumber in @[@(SIGTERM), @(SIGINT), @(SIGHUP)]) {
+        signal(signalNumber.intValue, SIG_IGN);
+        dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, signalNumber.unsignedLongValue, 0, dispatch_get_main_queue());
+        dispatch_source_set_event_handler(source, ^{
+            [NSApp terminate:nil];
+        });
+        dispatch_resume(source);
+        [self.signalSources addObject:source];
+    }
+}
+
+- (void)stopStaleXray {
+    NSString *pattern = [NSString stringWithFormat:@"^%@ run", [NSRegularExpression escapedPatternForString:[self xrayPath]]];
+    NSTask *task = [self taskWithLaunchPath:@"/usr/bin/pkill" arguments:@[@"-f", pattern]];
+    [task launch];
+    [task waitUntilExit];
+}
+
+- (BOOL)wantsConnection {
+    NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:kWantsConnectionKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setWantsConnection:(BOOL)wantsConnection {
+    [[NSUserDefaults standardUserDefaults] setBool:wantsConnection forKey:kWantsConnectionKey];
+}
+
+- (BOOL)supportsLoginItem {
+    if (@available(macOS 13.0, *)) return YES;
+    return NO;
+}
+
+- (BOOL)isLoginItemEnabled {
+    if (@available(macOS 13.0, *)) return [SMAppService mainAppService].status == SMAppServiceStatusEnabled;
+    return NO;
+}
+
+- (void)setUpLoginItemOnFirstLaunch {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:kDidSetUpLoginItemKey]) return;
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kDidSetUpLoginItemKey];
+    if (@available(macOS 13.0, *)) [[SMAppService mainAppService] registerAndReturnError:NULL];
+}
+
+- (IBAction)toggleLoginItem:(id)sender {
+    if (@available(macOS 13.0, *)) {
+        NSError *error = nil;
+        SMAppService *service = [SMAppService mainAppService];
+        BOOL changed = [self isLoginItemEnabled] ? [service unregisterAndReturnError:&error] : [service registerAndReturnError:&error];
+        if (!changed) [self showError:@"Could not change Open at Login." detail:error.localizedDescription];
+    }
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    [self.statusPopover close];
+    self.loginItemMenuItem.state = [self isLoginItemEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)showStatusPopover {
+    NSString *title = @"DongVPN is off";
+    NSString *detail = @"Click the network icon in the menu bar to connect.";
+    if (self.isConnected) {
+        title = @"DongVPN is connected";
+        detail = [NSString stringWithFormat:@"Your internet traffic now goes through %@. Click the network icon anytime to disconnect.", self.publicIP];
+    } else if (self.isWaitingToRetry) {
+        title = @"DongVPN is reconnecting";
+        detail = @"The VPN server isn't reachable yet. DongVPN keeps trying automatically.";
+    } else if (self.isTransitioning) {
+        title = @"DongVPN is connecting";
+        detail = @"This usually takes a few seconds.";
+    }
+
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 320, 96)];
+    NSTextField *heading = [NSTextField labelWithString:title];
+    heading.font = [NSFont boldSystemFontOfSize:13];
+    heading.frame = NSMakeRect(16, 66, 288, 18);
+    [view addSubview:heading];
+    NSTextField *body = [NSTextField wrappingLabelWithString:detail];
+    body.frame = NSMakeRect(16, 10, 288, 52);
+    [view addSubview:body];
+    NSViewController *controller = [[NSViewController alloc] init];
+    controller.view = view;
+
+    [self.statusPopover close];
+    NSPopover *popover = [[NSPopover alloc] init];
+    popover.behavior = NSPopoverBehaviorApplicationDefined;
+    // An animated popover ignores close while it is still animating in, which leaves it stuck on screen.
+    popover.animates = NO;
+    popover.contentViewController = controller;
+    self.statusPopover = popover;
+    [popover showRelativeToRect:self.statusBarItem.button.bounds ofView:self.statusBarItem.button preferredEdge:NSRectEdgeMinY];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [popover close];
+    });
+}
+
+- (IBAction)toggleConnection:(id)sender {
+    if (self.isTransitioning) return;
+    BOOL turnOff = self.isConnected || self.isWaitingToRetry;
+    [self setWantsConnection:!turnOff];
+    turnOff ? [self disconnect] : [self connectAutomatically:NO announce:NO];
+}
+
+- (void)connectAutomatically:(BOOL)automatic announce:(BOOL)announce {
+    self.connectGeneration++;
+    self.isWaitingToRetry = NO;
     self.isTransitioning = YES;
     [self updateStatusTitle:@"Connecting..." connected:NO];
 
     NSError *error = nil;
-    NSString *link = [self savedLink];
-    NSDictionary *connection = [self connectionFromVLESSLink:link error:&error];
+    NSDictionary *connection = [self connectionFromVLESSLink:[self savedLink] error:&error];
     if (!connection) {
         self.isTransitioning = NO;
         [self updateStatusTitle:@"Disconnected" connected:NO];
@@ -109,23 +272,24 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
         return;
     }
 
-    if (![self writeXrayConfigForConnection:connection error:&error]) {
-        self.isTransitioning = NO;
-        [self updateStatusTitle:@"Disconnected" connected:NO];
-        [self showError:@"Could not prepare Xray." detail:error.localizedDescription];
-        return;
-    }
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *backgroundError = nil;
-        BOOL ready = [self ensureXrayInstalled:&backgroundError] && [self startXray:&backgroundError];
+        BOOL ready = [self ensureXrayInstalled:&backgroundError]
+            && [self writeXrayConfigForConnection:connection error:&backgroundError]
+            && [self startXray:&backgroundError];
         NSString *verifiedIP = nil;
         if (ready) ready = [self verifyTunnelAndGetPublicIP:&verifiedIP error:&backgroundError];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (!ready) {
                 [self stopXray];
                 self.isTransitioning = NO;
-                [self updateStatusTitle:@"Disconnected" connected:NO];
-                [self showConnectionFailure:backgroundError.localizedDescription];
+                if (automatic && [self wantsConnection]) {
+                    [self scheduleAutomaticRetry];
+                    if (announce) [self showStatusPopover];
+                } else {
+                    [self updateStatusTitle:@"Disconnected" connected:NO];
+                    [self showConnectionFailure:backgroundError.localizedDescription];
+                }
                 return;
             }
             NSError *proxyError = nil;
@@ -139,12 +303,42 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
             self.isConnected = YES;
             self.publicIP = verifiedIP;
             self.isTransitioning = NO;
+            self.retryAttempt = 0;
+            self.xrayRestartCount = 0;
             [self updateStatusTitle:[NSString stringWithFormat:@"Connected - %@", verifiedIP] connected:YES];
+            if (announce) [self showStatusPopover];
         });
     });
 }
 
+- (void)scheduleAutomaticRetry {
+    self.isWaitingToRetry = YES;
+    NSInteger delay = MIN(30, 5 << MIN(self.retryAttempt, 3));
+    self.retryAttempt++;
+    [self updateStatusTitle:@"Reconnecting..." connected:NO];
+    self.toggleMenuItem.title = @"Cancel";
+    NSInteger generation = self.connectGeneration;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (generation != self.connectGeneration || !self.isWaitingToRetry) return;
+        [self connectAutomatically:YES announce:NO];
+    });
+}
+
+- (void)handleUnexpectedXrayExit {
+    if (self.xrayRestartCount < kMaxXrayRestarts) {
+        self.xrayRestartCount++;
+        if ([self startXray:NULL]) return;
+    }
+    self.isConnected = NO;
+    self.publicIP = nil;
+    self.xrayTask = nil;
+    [self restoreSystemProxy:NULL];
+    [self scheduleAutomaticRetry];
+}
+
 - (void)disconnect {
+    self.connectGeneration++;
+    self.isWaitingToRetry = NO;
     self.isTransitioning = YES;
     [self stopXray];
     NSError *error = nil;
@@ -180,13 +374,26 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 }
 
 - (BOOL)writeXrayConfigForConnection:(NSDictionary *)connection error:(NSError **)error {
+    NSMutableArray *rules = [NSMutableArray arrayWithObject:@{
+        @"type": @"field", @"outboundTag": @"direct",
+        @"ip": @[@"10.0.0.0/8", @"100.64.0.0/10", @"127.0.0.0/8", @"169.254.0.0/16", @"172.16.0.0/12", @"192.168.0.0/16", @"::1/128", @"fc00::/7", @"fe80::/10"]
+    }];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if ([fileManager fileExistsAtPath:[[self appSupportPath] stringByAppendingPathComponent:@"geosite.dat"]]) {
+        [rules addObject:@{ @"type": @"field", @"outboundTag": @"direct", @"domain": @[@"geosite:cn"] }];
+    }
+    if ([fileManager fileExistsAtPath:[[self appSupportPath] stringByAppendingPathComponent:@"geoip.dat"]]) {
+        [rules addObject:@{ @"type": @"field", @"outboundTag": @"direct", @"ip": @[@"geoip:cn"] }];
+    }
     NSDictionary *config = @{
         @"log": @{ @"loglevel": @"warning" },
         @"inbounds": @[@{
             @"listen": @"127.0.0.1", @"port": @(kSocksPort), @"protocol": @"socks",
             @"settings": @{ @"udp": @YES }
         }],
+        @"routing": @{ @"domainStrategy": @"AsIs", @"rules": rules },
         @"outbounds": @[@{
+            @"tag": @"proxy",
             @"protocol": @"vless",
             @"settings": @{ @"vnext": @[@{
                 @"address": connection[@"server"], @"port": connection[@"port"],
@@ -201,7 +408,7 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
                     @"publicKey": connection[@"publicKey"], @"shortId": connection[@"shortID"]
                 }
             }
-        }]
+        }, @{ @"tag": @"direct", @"protocol": @"freedom" }]
     };
     NSData *data = [NSJSONSerialization dataWithJSONObject:config options:NSJSONWritingPrettyPrinted error:error];
     BOOL written = data && [data writeToFile:[self configPath] options:NSDataWritingAtomic error:error];
@@ -210,31 +417,33 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 }
 
 - (BOOL)ensureXrayInstalled:(NSError **)error {
+    NSFileManager *fileManager = [NSFileManager defaultManager];
     NSString *xrayPath = [self xrayPath];
-    // A browser-downloaded app passes its quarantine flag to the copied binary, and Gatekeeper
-    // blocks quarantined unsigned executables outside the user-approved app bundle.
-    if ([[NSFileManager defaultManager] isExecutableFileAtPath:xrayPath]) {
-        removexattr(xrayPath.fileSystemRepresentation, "com.apple.quarantine", 0);
-        return YES;
-    }
-
     struct utsname systemInfo;
     uname(&systemInfo);
     NSString *machine = [NSString stringWithUTF8String:systemInfo.machine] ?: @"x86_64";
     BOOL isAppleSilicon = [machine isEqualToString:@"arm64"];
     NSString *resourceName = isAppleSilicon ? @"xray-arm64" : @"xray-x86_64";
-    NSString *bundledPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:resourceName];
-    if ([[NSFileManager defaultManager] isExecutableFileAtPath:bundledPath]) {
-        if (![[NSFileManager defaultManager] copyItemAtPath:bundledPath toPath:xrayPath error:error]) return NO;
-        removexattr(xrayPath.fileSystemRepresentation, "com.apple.quarantine", 0);
-        for (NSString *dataFile in @[@"geoip.dat", @"geosite.dat"]) {
-            NSString *source = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:dataFile];
-            NSString *destination = [[self appSupportPath] stringByAppendingPathComponent:dataFile];
-            if ([[NSFileManager defaultManager] fileExistsAtPath:source] && ![[NSFileManager defaultManager] fileExistsAtPath:destination]) {
-                [[NSFileManager defaultManager] copyItemAtPath:source toPath:destination error:NULL];
+    NSString *resources = [[NSBundle mainBundle] resourcePath];
+    if ([fileManager isExecutableFileAtPath:[resources stringByAppendingPathComponent:resourceName]]) {
+        NSDictionary<NSString *, NSString *> *files = @{ resourceName: @"xray", @"geoip.dat": @"geoip.dat", @"geosite.dat": @"geosite.dat" };
+        for (NSString *name in files) {
+            NSString *source = [resources stringByAppendingPathComponent:name];
+            NSString *destination = [[self appSupportPath] stringByAppendingPathComponent:files[name]];
+            if (![fileManager fileExistsAtPath:source]) continue;
+            if (![fileManager contentsEqualAtPath:source andPath:destination]) {
+                [fileManager removeItemAtPath:destination error:NULL];
+                if (![fileManager copyItemAtPath:source toPath:destination error:error]) return NO;
             }
+            // A browser-downloaded app passes its quarantine flag to copied files, and Gatekeeper
+            // blocks quarantined unsigned executables outside the user-approved app bundle.
+            removexattr(destination.fileSystemRepresentation, "com.apple.quarantine", 0);
         }
-        return [[NSFileManager defaultManager] setAttributes:@{NSFilePosixPermissions: @0755} ofItemAtPath:xrayPath error:error];
+        return [fileManager setAttributes:@{NSFilePosixPermissions: @0755} ofItemAtPath:xrayPath error:error];
+    }
+    if ([fileManager isExecutableFileAtPath:xrayPath]) {
+        removexattr(xrayPath.fileSystemRepresentation, "com.apple.quarantine", 0);
+        return YES;
     }
 
     NSString *asset = isAppleSilicon ? @"Xray-macos-arm64-v8a.zip" : @"Xray-macos-64.zip";
@@ -284,12 +493,8 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
     self.xrayTask.terminationHandler = ^(NSTask *task) {
         dispatch_async(dispatch_get_main_queue(), ^{
             AppDelegate *strongSelf = weakSelf;
-            if (!strongSelf || strongSelf.isTransitioning || !strongSelf.isConnected) return;
-            strongSelf.isConnected = NO;
-            strongSelf.publicIP = nil;
-            [strongSelf restoreSystemProxy:NULL];
-            [strongSelf updateStatusTitle:@"Disconnected" connected:NO];
-            [strongSelf showError:@"Xray stopped unexpectedly." detail:@"The macOS proxy was restored."];
+            if (!strongSelf || strongSelf.isTransitioning || !strongSelf.isConnected || task != strongSelf.xrayTask) return;
+            [strongSelf handleUnexpectedXrayExit];
         });
     };
     [self.xrayTask launch];
@@ -303,11 +508,18 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 }
 
 - (BOOL)verifyTunnelAndGetPublicIP:(NSString **)publicIP error:(NSError **)error {
+    for (NSString *url in @[@"https://api.ipify.org", @"https://checkip.amazonaws.com"]) {
+        if ([self fetchPublicIP:publicIP fromURL:url error:error]) return YES;
+    }
+    return NO;
+}
+
+- (BOOL)fetchPublicIP:(NSString **)publicIP fromURL:(NSString *)url error:(NSError **)error {
     NSTask *task = [self taskWithLaunchPath:@"/usr/bin/curl" arguments:@[
         @"--fail", @"--silent", @"--show-error",
-        @"--connect-timeout", @"8", @"--max-time", @"20",
+        @"--connect-timeout", @"8", @"--max-time", @"15",
         @"--socks5-hostname", [NSString stringWithFormat:@"127.0.0.1:%ld", (long)kSocksPort],
-        @"https://api.ipify.org"
+        url
     ]];
     NSPipe *outputPipe = [NSPipe pipe];
     NSPipe *errorPipe = [NSPipe pipe];
@@ -605,6 +817,11 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
     self.settingsStatusField.textColor = [NSColor systemGreenColor];
     [self updateConfigurationLabels];
     [self.settingsWindow orderOut:nil];
+
+    if (self.isTransitioning) return;
+    if (self.isConnected) [self disconnect];
+    [self setWantsConnection:YES];
+    [self connectAutomatically:NO announce:YES];
 }
 
 - (void)updateConfigurationLabels {

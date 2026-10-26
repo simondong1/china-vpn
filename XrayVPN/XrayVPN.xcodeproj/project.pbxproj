@@ -97,6 +97,10 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					ServiceManagement,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
 				PRODUCT_NAME = DongVPN;
 			};
@@ -115,6 +119,10 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					ServiceManagement,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
 				PRODUCT_NAME = DongVPN;
 			};
