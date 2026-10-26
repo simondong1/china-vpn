@@ -30,6 +30,9 @@ jobs:
 
         mkdir -p build/DongVPN
         cp -R build/DongVPN.xcarchive/Products/Applications/DongVPN.app build/DongVPN/
+        if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${GITHUB_REF_NAME#v}" -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" build/DongVPN/DongVPN.app/Contents/Info.plist
+        fi
 
         XRAY_VERSION=v26.10.21
         mkdir -p build/xray-arm64 build/xray-x86_64 build/DongVPN/DongVPN.app/Contents/Resources
