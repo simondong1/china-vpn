@@ -21,6 +21,8 @@ jobs:
 
     - name: Build app
       working-directory: XrayVPN
+      env:
+        DONGVPN_VLESS_LINK: ${{ secrets.DONGVPN_VLESS_LINK }}
       run: |
         set -euo pipefail
         mkdir -p build
@@ -40,6 +42,20 @@ jobs:
         cp build/xray-arm64/LICENSE build/DongVPN/DongVPN.app/Contents/Resources/Xray-LICENSE
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
+
+        if [ -n "${DONGVPN_VLESS_LINK:-}" ]; then
+          case "$DONGVPN_VLESS_LINK" in
+            vless://*) ;;
+            *) echo "::error::DONGVPN_VLESS_LINK must be a vless:// link"; exit 1 ;;
+          esac
+          printf '%s\n' "$DONGVPN_VLESS_LINK" > build/DongVPN/DongVPN.app/Contents/Resources/default.vless
+        elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+          echo "::error::Set the DONGVPN_VLESS_LINK repository secret before tagging a release."
+          exit 1
+        else
+          echo "::warning::DONGVPN_VLESS_LINK is not set; this build asks for a vless:// link on first launch."
+        fi
+
         test "$(find build/DongVPN -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -eq 1
         test -d build/DongVPN/DongVPN.app
 
@@ -86,21 +102,19 @@ jobs:
 
           **Installation:**
           1. Download DongVPN.dmg
-          2. Open and drag DongVPN.app to Applications
-          3. Control-click the app and choose Open the first time
-          4. On first launch, paste your vless:// link and choose Add Configuration
-          5. Choose Connect and approve the macOS administrator prompt
-          6. DongVPN checks the tunnel and displays the public IP routed through it
+          2. Open it and drag DongVPN.app to Applications
+          3. Open DongVPN. If macOS blocks it, open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open)
+          4. Choose Connect when DongVPN offers to connect, then approve the macOS administrator prompt
+          5. DongVPN checks the tunnel and displays the public IP routed through it
 
           **Features:**
-          - Menu bar status and one-click controls
-          - One-click Connect/Disconnect
+          - Server configuration built in; nothing to paste
+          - Menu bar status and one-click Connect/Disconnect
           - macOS SOCKS proxy for applications that honor system proxy settings
           - Restores previous SOCKS proxy settings when disconnected
-          - First-launch VPN configuration prompt
           - Tunnel verification and routed public IP display
           - Email support option when the connection fails
 
           This uses the macOS system SOCKS proxy and is not a Network Extension packet tunnel. Apps that ignore the system proxy and UDP traffic may bypass it.
 
-          To replace the saved link, choose Change VPN Configuration from the menu bar menu.
+          To use a different server, choose Change VPN Configuration from the menu bar menu and paste its vless:// link.

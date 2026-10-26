@@ -1,9 +1,11 @@
 #import "AppDelegate.h"
 #import <arpa/inet.h>
 #import <sys/utsname.h>
+#import <sys/xattr.h>
 
 static NSString * const kXrayVersion = @"v26.10.21";
 static NSInteger const kSocksPort = 10808;
+static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 
 @interface AppDelegate ()
 @property (nonatomic, strong) NSStatusItem *statusBarItem;
@@ -66,7 +68,22 @@ static NSInteger const kSocksPort = 10808;
         dispatch_async(dispatch_get_main_queue(), ^{
             [self showConfigurationPrompt:nil];
         });
+    } else if (![[NSUserDefaults standardUserDefaults] boolForKey:kDidOfferConnectKey]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self offerFirstConnect];
+        });
     }
+}
+
+- (void)offerFirstConnect {
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kDidOfferConnectKey];
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"DongVPN is ready";
+    alert.informativeText = @"Connect now? macOS will ask for your password to turn on the VPN. DongVPN stays in the menu bar.";
+    [alert addButtonWithTitle:@"Connect"];
+    [alert addButtonWithTitle:@"Later"];
+    if ([alert runModal] == NSAlertFirstButtonReturn) [self connect];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
@@ -194,7 +211,12 @@ static NSInteger const kSocksPort = 10808;
 
 - (BOOL)ensureXrayInstalled:(NSError **)error {
     NSString *xrayPath = [self xrayPath];
-    if ([[NSFileManager defaultManager] isExecutableFileAtPath:xrayPath]) return YES;
+    // A browser-downloaded app passes its quarantine flag to the copied binary, and Gatekeeper
+    // blocks quarantined unsigned executables outside the user-approved app bundle.
+    if ([[NSFileManager defaultManager] isExecutableFileAtPath:xrayPath]) {
+        removexattr(xrayPath.fileSystemRepresentation, "com.apple.quarantine", 0);
+        return YES;
+    }
 
     struct utsname systemInfo;
     uname(&systemInfo);
@@ -204,6 +226,7 @@ static NSInteger const kSocksPort = 10808;
     NSString *bundledPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:resourceName];
     if ([[NSFileManager defaultManager] isExecutableFileAtPath:bundledPath]) {
         if (![[NSFileManager defaultManager] copyItemAtPath:bundledPath toPath:xrayPath error:error]) return NO;
+        removexattr(xrayPath.fileSystemRepresentation, "com.apple.quarantine", 0);
         for (NSString *dataFile in @[@"geoip.dat", @"geosite.dat"]) {
             NSString *source = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:dataFile];
             NSString *destination = [[self appSupportPath] stringByAppendingPathComponent:dataFile];
@@ -569,9 +592,19 @@ static NSInteger const kSocksPort = 10808;
     [self.settingsWindow orderOut:nil];
 }
 
+- (NSString *)bundledLink {
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"default" ofType:@"vless"];
+    NSString *link = path ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] : nil;
+    link = [link stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return link.length > 0 ? link : nil;
+}
+
 - (NSString *)savedLink {
     NSData *data = [NSData dataWithContentsOfFile:[self linkPath]];
     if (data) return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+
+    NSString *bundled = [self bundledLink];
+    if (bundled) return bundled;
 
     NSData *configData = [NSData dataWithContentsOfFile:[self configPath]];
     NSDictionary *config = configData ? [NSJSONSerialization JSONObjectWithData:configData options:0 error:NULL] : nil;

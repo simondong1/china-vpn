@@ -58,6 +58,13 @@ ssh "${SSH_OPTS[@]}" ubuntu@"$IP" "sudo cat /root/vpn-link.txt" | tr -d '\r' >ou
 ssh "${SSH_OPTS[@]}" ubuntu@"$IP" "sudo base64 -w0 /root/vpn-qr.png" | base64 -d >out/vpn-qr.png
 echo "IP=$IP" >out/server.env
 
+# The macOS app build embeds this secret so users can connect without pasting a link
+if command -v gh >/dev/null 2>&1; then
+  gh secret set DONGVPN_VLESS_LINK <out/vpn-link.txt \
+    && echo "Updated GitHub secret DONGVPN_VLESS_LINK; tag a new release to ship it." \
+    || echo "Could not update GitHub secret DONGVPN_VLESS_LINK; set it manually from out/vpn-link.txt."
+fi
+
 echo
 echo "Done. Import link (also in out/vpn-link.txt, QR in out/vpn-qr.png):"
 cat out/vpn-link.txt
