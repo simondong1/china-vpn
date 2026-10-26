@@ -1,4 +1,4 @@
-name: Build XrayVPN
+name: Build DongVPN
 
 on:
   push:
@@ -24,30 +24,30 @@ jobs:
       run: |
         set -euo pipefail
         mkdir -p build
-        xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/XrayVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild.log
+        xcodebuild -project XrayVPN.xcodeproj -scheme XrayVPN -configuration Release -archivePath build/DongVPN.xcarchive archive CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/xcodebuild.log
 
-        mkdir -p build/XrayVPN
-        cp -R build/XrayVPN.xcarchive/Products/Applications/XrayVPN.app build/XrayVPN/
+        mkdir -p build/DongVPN
+        cp -R build/DongVPN.xcarchive/Products/Applications/DongVPN.app build/DongVPN/
 
         XRAY_VERSION=v26.10.21
-        mkdir -p build/xray-arm64 build/xray-x86_64 build/XrayVPN/XrayVPN.app/Contents/Resources
+        mkdir -p build/xray-arm64 build/xray-x86_64 build/DongVPN/DongVPN.app/Contents/Resources
         curl --fail --location "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-macos-arm64-v8a.zip" --output build/xray-arm64.zip
         curl --fail --location "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VERSION}/Xray-macos-64.zip" --output build/xray-x86_64.zip
         unzip -oq build/xray-arm64.zip -d build/xray-arm64
         unzip -oq build/xray-x86_64.zip -d build/xray-x86_64
-        install -m 755 build/xray-arm64/xray build/XrayVPN/XrayVPN.app/Contents/Resources/xray-arm64
-        install -m 755 build/xray-x86_64/xray build/XrayVPN/XrayVPN.app/Contents/Resources/xray-x86_64
-        cp build/xray-arm64/LICENSE build/XrayVPN/XrayVPN.app/Contents/Resources/Xray-LICENSE
-        test -x build/XrayVPN/XrayVPN.app/Contents/Resources/xray-arm64
-        test -x build/XrayVPN/XrayVPN.app/Contents/Resources/xray-x86_64
+        install -m 755 build/xray-arm64/xray build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
+        install -m 755 build/xray-x86_64/xray build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
+        cp build/xray-arm64/LICENSE build/DongVPN/DongVPN.app/Contents/Resources/Xray-LICENSE
+        test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
+        test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
 
-        cat > build/XrayVPN/README.txt << 'EOF'
-        XrayVPN for macOS
+        cat > build/DongVPN/README.txt << 'EOF'
+        DongVPN for macOS
 
         Installation:
-        1. Drag XrayVPN.app to your Applications folder
+        1. Drag DongVPN.app to your Applications folder
         2. First launch: Control-click the app and choose Open
-        3. The XrayVPN icon appears in your menu bar
+        3. The DongVPN icon appears in your menu bar
         4. Click the icon, then choose Settings
         5. Paste your vless:// link from out/vpn-link.txt
         6. Click Save
@@ -59,7 +59,7 @@ jobs:
         Click Disconnect in the menu to stop.
         EOF
 
-        hdiutil create -volname "XrayVPN" -srcfolder build/XrayVPN -ov -format UDZO XrayVPN.dmg
+        hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
 
     - name: Report Xcode failure
       if: failure()
@@ -78,7 +78,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: XrayVPN-xcode-diagnostics-${{ github.run_id }}
+        name: DongVPN-xcode-diagnostics-${{ github.run_id }}
         path: XrayVPN/build/xcodebuild.log
         if-no-files-found: warn
 
@@ -89,22 +89,22 @@ jobs:
     - name: Upload DMG
       uses: actions/upload-artifact@v4
       with:
-        name: XrayVPN-macOS-${{ steps.vars.outputs.sha_short }}
-        path: XrayVPN/XrayVPN.dmg
+        name: DongVPN-macOS-${{ steps.vars.outputs.sha_short }}
+        path: XrayVPN/DongVPN.dmg
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
-        files: XrayVPN/XrayVPN.dmg
+        files: XrayVPN/DongVPN.dmg
         body: |
-          XrayVPN - macOS VPN Menu Bar App
+          DongVPN - macOS VPN Menu Bar App
 
           **Installation:**
-          1. Download XrayVPN.dmg
-          2. Open and drag XrayVPN.app to Applications
+          1. Download DongVPN.dmg
+          2. Open and drag DongVPN.app to Applications
           3. Control-click the app and choose Open the first time
-          4. Click the menu bar icon, then Settings, and paste your vless:// link
+          4. Click the DongVPN menu bar icon, then Settings, and paste your vless:// link
           5. Choose Connect and approve the macOS administrator prompt
 
           **Features:**
