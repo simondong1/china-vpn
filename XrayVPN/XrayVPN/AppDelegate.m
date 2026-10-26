@@ -80,7 +80,7 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
     [NSApp activateIgnoringOtherApps:YES];
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"DongVPN is ready";
-    alert.informativeText = @"Connect now? macOS will ask for your password to turn on the VPN. DongVPN stays in the menu bar.";
+    alert.informativeText = @"Connect now? DongVPN stays in the menu bar so you can connect or disconnect anytime.";
     [alert addButtonWithTitle:@"Connect"];
     [alert addButtonWithTitle:@"Later"];
     if ([alert runModal] == NSAlertFirstButtonReturn) [self connect];
@@ -349,20 +349,20 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
         return NO;
     }
     [self.proxyBackups removeAllObjects];
-    NSMutableArray<NSString *> *commands = [NSMutableArray array];
+    NSMutableArray<NSArray<NSString *> *> *commands = [NSMutableArray array];
     for (NSString *service in services) {
         NSDictionary *backup = [self socksProxySettingsForService:service];
         if (!backup) continue;
         self.proxyBackups[service] = backup;
-        [commands addObject:[NSString stringWithFormat:@"/usr/sbin/networksetup -setsocksfirewallproxy %@ 127.0.0.1 %ld", [self shellQuote:service], (long)kSocksPort]];
-        [commands addObject:[NSString stringWithFormat:@"/usr/sbin/networksetup -setsocksfirewallproxystate %@ on", [self shellQuote:service]]];
+        [commands addObject:@[@"-setsocksfirewallproxy", service, @"127.0.0.1", [NSString stringWithFormat:@"%ld", (long)kSocksPort]]];
+        [commands addObject:@[@"-setsocksfirewallproxystate", service, @"on"]];
     }
     NSData *backupData = [NSJSONSerialization dataWithJSONObject:self.proxyBackups options:0 error:error];
     if (!backupData || ![backupData writeToFile:[self proxyBackupPath] options:NSDataWritingAtomic error:error]) {
         [self.proxyBackups removeAllObjects];
         return NO;
     }
-    if (commands.count == 0 || ![self runAdminCommands:commands error:error]) {
+    if (commands.count == 0 || ![self runNetworkSetupCommands:commands error:error]) {
         [self restoreSystemProxy:NULL];
         return NO;
     }
@@ -370,17 +370,16 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
 }
 
 - (BOOL)restoreSystemProxy:(NSError **)error {
-    NSMutableArray<NSString *> *commands = [NSMutableArray array];
+    NSMutableArray<NSArray<NSString *> *> *commands = [NSMutableArray array];
     [self.proxyBackups enumerateKeysAndObjectsUsingBlock:^(NSString *service, NSDictionary *backup, BOOL *stop) {
         NSString *server = backup[@"server"];
         NSString *port = backup[@"port"];
-        if (server.length > 0 && port.length > 0) {
-            [commands addObject:[NSString stringWithFormat:@"/usr/sbin/networksetup -setsocksfirewallproxy %@ %@ %@", [self shellQuote:service], [self shellQuote:server], [self shellQuote:port]]];
-        }
+        BOOL hadServer = server.length > 0 && port.length > 0;
+        [commands addObject:@[@"-setsocksfirewallproxy", service, hadServer ? server : @"", hadServer ? port : @""]];
         NSString *state = [backup[@"enabled"] boolValue] ? @"on" : @"off";
-        [commands addObject:[NSString stringWithFormat:@"/usr/sbin/networksetup -setsocksfirewallproxystate %@ %@", [self shellQuote:service], state]];
+        [commands addObject:@[@"-setsocksfirewallproxystate", service, state]];
     }];
-    BOOL success = commands.count == 0 || [self runAdminCommands:commands error:error];
+    BOOL success = commands.count == 0 || [self runNetworkSetupCommands:commands error:error];
     if (success) {
         [self.proxyBackups removeAllObjects];
         [[NSFileManager defaultManager] removeItemAtPath:[self proxyBackupPath] error:NULL];
@@ -421,6 +420,35 @@ static NSString * const kDidOfferConnectKey = @"DidOfferFirstConnect";
         if ([key isEqualToString:@"Port"]) result[@"port"] = value;
     }];
     return result[@"enabled"] != nil ? result : nil;
+}
+
+- (BOOL)runNetworkSetupCommands:(NSArray<NSArray<NSString *> *> *)commands error:(NSError **)error {
+    BOOL succeeded = YES;
+    for (NSArray<NSString *> *arguments in commands) {
+        NSTask *task = [self taskWithLaunchPath:@"/usr/sbin/networksetup" arguments:arguments];
+        NSPipe *pipe = [NSPipe pipe];
+        task.standardOutput = pipe;
+        task.standardError = pipe;
+        [task launch];
+        NSData *data = [pipe.fileHandleForReading readDataToEndOfFile];
+        [task waitUntilExit];
+        NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] ?: @"";
+        if (task.terminationStatus != 0 || [output containsString:@"** Error"]) {
+            succeeded = NO;
+            break;
+        }
+    }
+    if (succeeded) return YES;
+
+    // networksetup is entitled to change network settings without a password on administrator accounts;
+    // other accounts may be refused and need an administrator to approve.
+    NSMutableArray<NSString *> *shellCommands = [NSMutableArray array];
+    for (NSArray<NSString *> *arguments in commands) {
+        NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:@"/usr/sbin/networksetup"];
+        for (NSString *argument in arguments) [parts addObject:[self shellQuote:argument]];
+        [shellCommands addObject:[parts componentsJoinedByString:@" "]];
+    }
+    return [self runAdminCommands:shellCommands error:error];
 }
 
 - (BOOL)runAdminCommands:(NSArray<NSString *> *)commands error:(NSError **)error {

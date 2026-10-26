@@ -103,12 +103,13 @@ jobs:
           **Installation:**
           1. Download DongVPN.dmg
           2. Open it and drag DongVPN.app to Applications
-          3. Open DongVPN. If macOS blocks it, open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open)
-          4. Choose Connect when DongVPN offers to connect, then approve the macOS administrator prompt
+          3. Open DongVPN. The first time, macOS blocks it: open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open). This is needed only once.
+          4. Choose Connect when DongVPN offers to connect
           5. DongVPN checks the tunnel and displays the public IP routed through it
 
           **Features:**
           - Server configuration built in; nothing to paste
+          - No password prompts when connecting or disconnecting on administrator accounts
           - Menu bar status and one-click Connect/Disconnect
           - macOS SOCKS proxy for applications that honor system proxy settings
           - Restores previous SOCKS proxy settings when disconnected

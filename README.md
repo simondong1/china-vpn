@@ -10,8 +10,8 @@ Build the `XrayVPN` target in `XrayVPN/XrayVPN.xcodeproj` on macOS 12 or later. 
 
 The workflow embeds the server link from the `DONGVPN_VLESS_LINK` repository secret as `Resources/default.vless`, so users never paste a link. `deploy.sh` updates that secret when the GitHub CLI is installed; otherwise set it with `gh secret set DONGVPN_VLESS_LINK < out/vpn-link.txt`. Tagged releases fail if the secret is missing. Anyone with the DMG can read the embedded link, so share releases only with people who should use the server.
 
-1. Open DongVPN. If macOS blocks it, open **System Settings > Privacy & Security** and choose **Open Anyway** (on macOS 14 and earlier, Control-click the app and choose **Open**).
-2. On first launch, DongVPN offers to connect. Choose **Connect** and approve the macOS administrator prompt to apply the system proxy. Later, use **Connect** from the menu bar item.
+1. Open DongVPN. The first time, macOS blocks the unsigned app: open **System Settings > Privacy & Security** and choose **Open Anyway** (on macOS 14 and earlier, Control-click the app and choose **Open**). This is needed only once.
+2. On first launch, DongVPN offers to connect. Choose **Connect**. Later, use **Connect** from the menu bar item. On administrator accounts, connecting and disconnecting never ask for a password. If macOS refuses the change (for example on a standard account), DongVPN asks for administrator approval instead.
 3. DongVPN tests the tunnel by requesting a public IP through it and shows the routed IP when the test succeeds.
 4. Choose **Disconnect** to stop Xray and restore the proxy settings that were active before connecting. Use **Change VPN Configuration...** in the menu to use a different `vless://` link instead of the built-in one.
 
