@@ -14,13 +14,19 @@ curl -fsSL https://github.com/simondong1/china-vpn/releases/latest/download/inst
 
 DongVPN installs into Applications, connects, and opens at login from then on. Files downloaded this way are not quarantined, so macOS shows no security prompt. Run the same command to update.
 
+中文：打开“终端”，粘贴上面的命令并按回车。DongVPN 会自动安装、连接，并在以后登录时自动打开。应用界面会根据 Mac 的语言显示中文。
+
 To install from the DMG instead, download `DongVPN.dmg` from the latest release, drag DongVPN to Applications, and open it. The first time, macOS blocks the unsigned app: open **System Settings > Privacy & Security** and choose **Open Anyway** (on macOS 14 and earlier, Control-click the app and choose **Open**). If DongVPN is opened from somewhere other than Applications, it moves itself there.
 
 ## Using DongVPN
 
 - DongVPN connects on launch and at login, and shows a short confirmation under its menu bar icon the first time. If the user chose **Disconnect** before quitting, it stays disconnected until **Connect** is chosen or the app is opened again.
 - It tests the tunnel by requesting a public IP through it before turning on the system proxy, and shows that IP in the menu.
-- If the server is unreachable, DongVPN keeps retrying in the background without dialogs. If Xray crashes, it restarts it; after repeated crashes it restores the proxy and reconnects.
+- If the server is unreachable, DongVPN keeps retrying in the background without dialogs, and retries immediately when the network comes back or the Mac wakes. If Xray crashes, it restarts it; after repeated crashes it restores the proxy and reconnects.
+- While connected, DongVPN checks the tunnel every minute. After two failed checks it turns the proxy off, so a dead server does not block browsing, and reconnects automatically.
+- If another app already uses SOCKS port 10808, DongVPN picks the next free port.
+- The menu, messages, and status popover are in Chinese when the Mac's preferred language is Chinese.
+- Connection events are logged; view them with `log show --last 1h --predicate 'process == "DongVPN"'`.
 - Local network addresses and mainland China sites (`geosite:cn`, `geoip:cn`) connect directly; everything else goes through the VPN.
 - On administrator accounts, connecting and disconnecting never ask for a password. If macOS refuses the change (for example on a standard account), DongVPN asks for administrator approval instead.
 - **Disconnect**, **Quit**, logout, and shutdown restore the proxy settings that were active before connecting. **Open at Login** in the menu turns the login item off or on (macOS 13 and later).

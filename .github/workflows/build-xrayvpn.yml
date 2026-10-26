@@ -17,7 +17,7 @@ jobs:
     runs-on: macos-14
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Build app
       working-directory: XrayVPN
@@ -83,7 +83,7 @@ jobs:
 
     - name: Upload Xcode diagnostics
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: DongVPN-xcode-diagnostics-${{ github.run_id }}
         path: XrayVPN/build/xcodebuild.log
@@ -94,14 +94,14 @@ jobs:
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Upload DMG
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: DongVPN-macOS-${{ steps.vars.outputs.sha_short }}
         path: XrayVPN/DongVPN.dmg
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: |
           XrayVPN/DongVPN.dmg
@@ -120,10 +120,14 @@ jobs:
           2. Open DongVPN. The first time, macOS blocks it: open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open). This is needed only once.
           3. DongVPN connects automatically
 
+          **中文安装说明：** 打开“终端”，粘贴上面的命令并按回车。DongVPN 会自动安装、连接，并在以后登录时自动打开。再次运行同一命令即可更新。
+          也可以下载 DongVPN.dmg，将 DongVPN 拖到“应用程序”后打开。第一次打开时 macOS 会阻止它：请前往“系统设置 > 隐私与安全性”，点按“仍要打开”（只需一次）。
+
           **Features:**
           - Connects automatically on launch and at login; nothing to paste or configure
+          - English and Chinese interface, chosen from the Mac's language
           - No password prompts on administrator accounts
-          - Reconnects automatically after network loss, sleep, or an Xray crash
+          - Checks the tunnel every minute and reconnects automatically after network changes, sleep, server outages, or an Xray crash
           - Local network and mainland China sites stay direct; everything else goes through the VPN
           - Menu bar status with one-click Connect/Disconnect and Open at Login
           - Restores previous proxy settings when disconnected or quit

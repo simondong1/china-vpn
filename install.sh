@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Downloading DongVPN..."
+echo "Downloading DongVPN... / 正在下载 DongVPN…"
 curl -fL --progress-bar -o "$WORK/DongVPN.dmg" "$DMG_URL"
 mkdir -p "$MOUNT"
 hdiutil attach "$WORK/DongVPN.dmg" -nobrowse -readonly -mountpoint "$MOUNT" -quiet
@@ -35,3 +35,4 @@ xattr -d -r com.apple.quarantine "$DEST/DongVPN.app" 2>/dev/null || true
 open "$DEST/DongVPN.app"
 
 echo "DongVPN is installed and connecting. Look for the network icon in the menu bar."
+echo "DongVPN 已安装，正在连接。请在菜单栏中查找网络图标。"

@@ -100,6 +100,8 @@
 				OTHER_LDFLAGS = (
 					"-framework",
 					ServiceManagement,
+					"-framework",
+					Network,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
 				PRODUCT_NAME = DongVPN;
@@ -122,6 +124,8 @@
 				OTHER_LDFLAGS = (
 					"-framework",
 					ServiceManagement,
+					"-framework",
+					Network,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xrayvpn.app;
 				PRODUCT_NAME = DongVPN;
