@@ -40,24 +40,8 @@ jobs:
         cp build/xray-arm64/LICENSE build/DongVPN/DongVPN.app/Contents/Resources/Xray-LICENSE
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-arm64
         test -x build/DongVPN/DongVPN.app/Contents/Resources/xray-x86_64
-
-        cat > build/DongVPN/README.txt << 'EOF'
-        DongVPN for macOS
-
-        Installation:
-        1. Drag DongVPN.app to your Applications folder
-        2. First launch: Control-click the app and choose Open
-        3. The DongVPN icon appears in your menu bar
-        4. Click the icon, then choose Settings
-        5. Paste your vless:// link from out/vpn-link.txt
-        6. Click Save
-        7. Click the icon and choose Connect
-
-        This client uses the macOS SOCKS proxy for apps that honor system proxy settings.
-        It is not a Network Extension packet tunnel, so some apps and UDP traffic may bypass it.
-
-        Click Disconnect in the menu to stop.
-        EOF
+        test "$(find build/DongVPN -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -eq 1
+        test -d build/DongVPN/DongVPN.app
 
         hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
 
@@ -104,16 +88,19 @@ jobs:
           1. Download DongVPN.dmg
           2. Open and drag DongVPN.app to Applications
           3. Control-click the app and choose Open the first time
-          4. Click the DongVPN menu bar icon, then Settings, and paste your vless:// link
+          4. On first launch, paste your vless:// link and choose Add Configuration
           5. Choose Connect and approve the macOS administrator prompt
+          6. DongVPN checks the tunnel and displays the public IP routed through it
 
           **Features:**
           - Menu bar status and one-click controls
           - One-click Connect/Disconnect
           - macOS SOCKS proxy for applications that honor system proxy settings
           - Restores previous SOCKS proxy settings when disconnected
-          - Easy setup: paste your vless:// link
+          - First-launch VPN configuration prompt
+          - Tunnel verification and routed public IP display
+          - Email support option when the connection fails
 
           This uses the macOS system SOCKS proxy and is not a Network Extension packet tunnel. Apps that ignore the system proxy and UDP traffic may bypass it.
 
-          Your server is at 52.34.245.131. Get your vless:// link from out/vpn-link.txt
+          To replace the saved link, choose Change VPN Configuration from the menu bar menu.

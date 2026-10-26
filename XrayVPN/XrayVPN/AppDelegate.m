@@ -1,4 +1,5 @@
 #import "AppDelegate.h"
+#import <arpa/inet.h>
 #import <sys/utsname.h>
 
 static NSString * const kXrayVersion = @"v26.10.21";
@@ -8,19 +9,18 @@ static NSInteger const kSocksPort = 10808;
 @property (nonatomic, strong) NSStatusItem *statusBarItem;
 @property (nonatomic, strong) NSMenuItem *statusMenuItem;
 @property (nonatomic, strong) NSMenuItem *toggleMenuItem;
+@property (nonatomic, strong) NSMenuItem *configurationMenuItem;
 @property (nonatomic, strong) NSTask *xrayTask;
 @property (nonatomic, strong) NSWindow *settingsWindow;
 @property (nonatomic, strong) NSTextField *linkField;
-@property (nonatomic, strong) NSTextField *serverField;
-@property (nonatomic, strong) NSTextField *portField;
-@property (nonatomic, strong) NSTextField *uuidField;
-@property (nonatomic, strong) NSTextField *publicKeyField;
-@property (nonatomic, strong) NSTextField *shortIDField;
-@property (nonatomic, strong) NSTextField *sniField;
+@property (nonatomic, strong) NSTextField *configurationHeadingField;
+@property (nonatomic, strong) NSButton *configurationSaveButton;
 @property (nonatomic, strong) NSTextField *settingsStatusField;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *proxyBackups;
+@property (nonatomic, copy) NSString *publicIP;
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isTransitioning;
+- (void)updateConfigurationLabels;
 @end
 
 @implementation AppDelegate
@@ -41,8 +41,9 @@ static NSInteger const kSocksPort = 10808;
     self.toggleMenuItem.target = self;
     [menu addItem:[NSMenuItem separatorItem]];
 
-    NSMenuItem *settingsItem = [menu addItemWithTitle:@"Settings..." action:@selector(showSettings:) keyEquivalent:@","];
-    settingsItem.target = self;
+    self.configurationMenuItem = [menu addItemWithTitle:@"Add VPN Configuration..." action:@selector(showConfigurationPrompt:) keyEquivalent:@""];
+    self.configurationMenuItem.target = self;
+    if ([self savedLink].length > 0) self.configurationMenuItem.title = @"Change VPN Configuration...";
     [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *quitItem = [menu addItemWithTitle:@"Quit DongVPN" action:@selector(quitApp:) keyEquivalent:@"q"];
@@ -59,6 +60,12 @@ static NSInteger const kSocksPort = 10808;
                 [self showError:@"DongVPN restored after an interrupted session." detail:error.localizedDescription ?: @"Previous macOS proxy settings could not be restored."];
             });
         }
+    }
+
+    if ([self savedLink].length == 0) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showConfigurationPrompt:nil];
+        });
     }
 }
 
@@ -81,7 +88,7 @@ static NSInteger const kSocksPort = 10808;
     if (!connection) {
         self.isTransitioning = NO;
         [self updateStatusTitle:@"Disconnected" connected:NO];
-        [self showError:@"Connection settings are missing or invalid." detail:error.localizedDescription ?: @"Open Settings and import a vless:// link."];
+        [self showError:@"VPN configuration is missing or invalid." detail:error.localizedDescription ?: @"Choose VPN Configuration from the DongVPN menu."];
         return;
     }
 
@@ -94,11 +101,14 @@ static NSInteger const kSocksPort = 10808;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *backgroundError = nil;
         BOOL ready = [self ensureXrayInstalled:&backgroundError] && [self startXray:&backgroundError];
+        NSString *verifiedIP = nil;
+        if (ready) ready = [self verifyTunnelAndGetPublicIP:&verifiedIP error:&backgroundError];
         dispatch_async(dispatch_get_main_queue(), ^{
             if (!ready) {
+                [self stopXray];
                 self.isTransitioning = NO;
                 [self updateStatusTitle:@"Disconnected" connected:NO];
-                [self showError:@"Xray could not start." detail:backgroundError.localizedDescription];
+                [self showConnectionFailure:backgroundError.localizedDescription];
                 return;
             }
             NSError *proxyError = nil;
@@ -106,12 +116,13 @@ static NSInteger const kSocksPort = 10808;
                 [self stopXray];
                 self.isTransitioning = NO;
                 [self updateStatusTitle:@"Disconnected" connected:NO];
-                [self showError:@"Could not enable the macOS proxy." detail:proxyError.localizedDescription];
+                [self showConnectionFailure:[NSString stringWithFormat:@"Could not enable the macOS proxy. %@", proxyError.localizedDescription ?: @""]];
                 return;
             }
             self.isConnected = YES;
+            self.publicIP = verifiedIP;
             self.isTransitioning = NO;
-            [self updateStatusTitle:@"Connected" connected:YES];
+            [self updateStatusTitle:[NSString stringWithFormat:@"Connected - %@", verifiedIP] connected:YES];
         });
     });
 }
@@ -124,6 +135,7 @@ static NSInteger const kSocksPort = 10808;
         [self showError:@"Could not restore the previous proxy settings." detail:error.localizedDescription];
     }
     self.isConnected = NO;
+    self.publicIP = nil;
     self.isTransitioning = NO;
     [self updateStatusTitle:@"Disconnected" connected:NO];
 }
@@ -132,6 +144,7 @@ static NSInteger const kSocksPort = 10808;
     [self stopXray];
     if (self.proxyBackups.count > 0) [self restoreSystemProxy:NULL];
     self.isConnected = NO;
+    self.publicIP = nil;
 }
 
 - (void)updateStatusTitle:(NSString *)title connected:(BOOL)connected {
@@ -139,6 +152,7 @@ static NSInteger const kSocksPort = 10808;
     self.toggleMenuItem.title = connected ? @"Disconnect" : @"Connect";
     self.statusBarItem.button.image = [self statusImageConnected:connected];
     self.statusBarItem.button.image.template = YES;
+    self.statusBarItem.button.toolTip = connected && self.publicIP.length > 0 ? [NSString stringWithFormat:@"DongVPN - %@", self.publicIP] : @"DongVPN";
 }
 
 - (NSImage *)statusImageConnected:(BOOL)connected {
@@ -249,6 +263,7 @@ static NSInteger const kSocksPort = 10808;
             AppDelegate *strongSelf = weakSelf;
             if (!strongSelf || strongSelf.isTransitioning || !strongSelf.isConnected) return;
             strongSelf.isConnected = NO;
+            strongSelf.publicIP = nil;
             [strongSelf restoreSystemProxy:NULL];
             [strongSelf updateStatusTitle:@"Disconnected" connected:NO];
             [strongSelf showError:@"Xray stopped unexpectedly." detail:@"The macOS proxy was restored."];
@@ -261,6 +276,38 @@ static NSInteger const kSocksPort = 10808;
         self.xrayTask = nil;
         return NO;
     }
+    return YES;
+}
+
+- (BOOL)verifyTunnelAndGetPublicIP:(NSString **)publicIP error:(NSError **)error {
+    NSTask *task = [self taskWithLaunchPath:@"/usr/bin/curl" arguments:@[
+        @"--fail", @"--silent", @"--show-error",
+        @"--connect-timeout", @"8", @"--max-time", @"20",
+        @"--socks5-hostname", [NSString stringWithFormat:@"127.0.0.1:%ld", (long)kSocksPort],
+        @"https://api.ipify.org"
+    ]];
+    NSPipe *outputPipe = [NSPipe pipe];
+    NSPipe *errorPipe = [NSPipe pipe];
+    task.standardOutput = outputPipe;
+    task.standardError = errorPipe;
+    [task launch];
+    [task waitUntilExit];
+
+    NSData *outputData = [outputPipe.fileHandleForReading readDataToEndOfFile];
+    NSData *errorData = [errorPipe.fileHandleForReading readDataToEndOfFile];
+    NSString *output = [[NSString alloc] initWithData:outputData encoding:NSUTF8StringEncoding] ?: @"";
+    NSString *errorOutput = [[NSString alloc] initWithData:errorData encoding:NSUTF8StringEncoding] ?: @"";
+    NSString *ip = [output stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    struct in_addr ipv4;
+    struct in6_addr ipv6;
+    BOOL isValidIP = inet_pton(AF_INET, ip.UTF8String, &ipv4) == 1 || inet_pton(AF_INET6, ip.UTF8String, &ipv6) == 1;
+    if (task.terminationStatus != 0 || !isValidIP) {
+        NSString *curlError = [errorOutput stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSString *detail = curlError.length > 0 ? curlError : (ip.length > 0 ? ip : @"No response was received through the VPN tunnel.");
+        if (error) *error = [NSError errorWithDomain:@"DongVPN" code:40 userInfo:@{NSLocalizedDescriptionKey: detail}];
+        return NO;
+    }
+    if (publicIP) *publicIP = ip;
     return YES;
 }
 
@@ -429,7 +476,7 @@ static NSInteger const kSocksPort = 10808;
     };
 }
 
-- (IBAction)showSettings:(id)sender {
+- (IBAction)showConfigurationPrompt:(id)sender {
     if (!self.settingsWindow) [self buildSettingsWindow];
     [self loadSettingsIntoWindow];
     [self.settingsWindow makeKeyAndOrderFront:nil];
@@ -437,58 +484,38 @@ static NSInteger const kSocksPort = 10808;
 }
 
 - (void)buildSettingsWindow {
-    NSRect frame = NSMakeRect(0, 0, 560, 465);
+    NSRect frame = NSMakeRect(0, 0, 540, 270);
     self.settingsWindow = [[NSWindow alloc] initWithContentRect:frame styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable) backing:NSBackingStoreBuffered defer:NO];
-    self.settingsWindow.title = @"DongVPN Settings";
+    self.settingsWindow.title = @"Add VPN Configuration";
     self.settingsWindow.releasedWhenClosed = NO;
     NSView *content = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, frame.size.width, frame.size.height)];
     self.settingsWindow.contentView = content;
 
-    NSTextField *heading = [NSTextField labelWithString:@"VPN connection"];
+    NSTextField *heading = [NSTextField labelWithString:@"Add VPN Configuration"];
     heading.font = [NSFont boldSystemFontOfSize:18];
-    heading.frame = NSMakeRect(28, 414, 504, 24);
+    heading.frame = NSMakeRect(28, 220, 484, 24);
     [content addSubview:heading];
-    NSTextField *help = [NSTextField wrappingLabelWithString:@"Import the vless:// link generated by your server. DongVPN uses the macOS SOCKS proxy for apps that honor system proxy settings."];
-    help.frame = NSMakeRect(28, 365, 504, 40);
+    self.configurationHeadingField = heading;
+    NSTextField *help = [NSTextField wrappingLabelWithString:@"Paste the vless:// link for your VPN. DongVPN saves it automatically; macOS asks for approval when you connect."];
+    help.frame = NSMakeRect(28, 172, 484, 36);
     [content addSubview:help];
 
-    self.linkField = [self textFieldAt:NSMakeRect(28, 325, 410, 28) placeholder:@"vless://..." inView:content];
+    self.linkField = [self textFieldAt:NSMakeRect(28, 124, 484, 30) placeholder:@"vless://..." inView:content];
     self.linkField.editable = YES;
     self.linkField.bezeled = YES;
     self.linkField.drawsBackground = YES;
-    NSButton *importButton = [NSButton buttonWithTitle:@"Import" target:self action:@selector(importLink:)];
-    importButton.frame = NSMakeRect(448, 325, 84, 28);
-    [content addSubview:importButton];
-
-    NSBox *line = [[NSBox alloc] initWithFrame:NSMakeRect(28, 302, 504, 1)];
-    line.boxType = NSBoxSeparator;
-    [content addSubview:line];
-
-    NSArray *labels = @[@"Server", @"Port", @"UUID", @"Public key", @"Short ID", @"SNI"];
-    NSTextField *fieldValues[6];
-    for (NSUInteger i = 0; i < labels.count; i++) {
-        CGFloat y = 260 - ((CGFloat)i * 38);
-        NSTextField *label = [NSTextField labelWithString:labels[i]];
-        label.alignment = NSTextAlignmentRight;
-        label.frame = NSMakeRect(28, y + 5, 92, 22);
-        [content addSubview:label];
-        fieldValues[i] = [self textFieldAt:NSMakeRect(132, y, 400, 28) placeholder:@"" inView:content];
-    }
-    self.serverField = fieldValues[0]; self.portField = fieldValues[1]; self.uuidField = fieldValues[2];
-    self.publicKeyField = fieldValues[3]; self.shortIDField = fieldValues[4]; self.sniField = fieldValues[5];
-    self.portField.placeholderString = @"443";
 
     self.settingsStatusField = [NSTextField labelWithString:@""];
-    self.settingsStatusField.frame = NSMakeRect(28, 34, 330, 22);
+    self.settingsStatusField.frame = NSMakeRect(28, 34, 250, 22);
     self.settingsStatusField.textColor = [NSColor secondaryLabelColor];
     [content addSubview:self.settingsStatusField];
     NSButton *cancel = [NSButton buttonWithTitle:@"Cancel" target:self action:@selector(cancelSettings:)];
-    cancel.frame = NSMakeRect(370, 28, 78, 32);
+    cancel.frame = NSMakeRect(292, 28, 82, 32);
     [content addSubview:cancel];
-    NSButton *save = [NSButton buttonWithTitle:@"Save" target:self action:@selector(saveSettings:)];
-    save.frame = NSMakeRect(454, 28, 78, 32);
-    save.keyEquivalent = @"\r";
-    [content addSubview:save];
+    self.configurationSaveButton = [NSButton buttonWithTitle:@"Add Configuration" target:self action:@selector(saveSettings:)];
+    self.configurationSaveButton.frame = NSMakeRect(370, 28, 148, 32);
+    self.configurationSaveButton.keyEquivalent = @"\r";
+    [content addSubview:self.configurationSaveButton];
 }
 
 - (NSTextField *)textFieldAt:(NSRect)frame placeholder:(NSString *)placeholder inView:(NSView *)view {
@@ -504,35 +531,8 @@ static NSInteger const kSocksPort = 10808;
 
 - (void)loadSettingsIntoWindow {
     self.linkField.stringValue = [self savedLink] ?: @"";
-    NSError *error = nil;
-    NSDictionary *connection = [self connectionFromVLESSLink:self.linkField.stringValue error:&error];
-    if (connection) {
-        self.serverField.stringValue = connection[@"server"];
-        self.portField.stringValue = [connection[@"port"] stringValue];
-        self.uuidField.stringValue = connection[@"uuid"];
-        self.publicKeyField.stringValue = connection[@"publicKey"];
-        self.shortIDField.stringValue = connection[@"shortID"];
-        self.sniField.stringValue = connection[@"sni"];
-    }
     self.settingsStatusField.stringValue = @"";
-}
-
-- (void)importLink:(id)sender {
-    NSError *error = nil;
-    NSDictionary *connection = [self connectionFromVLESSLink:self.linkField.stringValue error:&error];
-    if (!connection) {
-        self.settingsStatusField.stringValue = error.localizedDescription;
-        self.settingsStatusField.textColor = [NSColor systemRedColor];
-        return;
-    }
-    self.serverField.stringValue = connection[@"server"];
-    self.portField.stringValue = [connection[@"port"] stringValue];
-    self.uuidField.stringValue = connection[@"uuid"];
-    self.publicKeyField.stringValue = connection[@"publicKey"];
-    self.shortIDField.stringValue = connection[@"shortID"];
-    self.sniField.stringValue = connection[@"sni"];
-    self.settingsStatusField.stringValue = @"Link imported. Review it, then click Save.";
-    self.settingsStatusField.textColor = [NSColor systemGreenColor];
+    [self updateConfigurationLabels];
 }
 
 - (void)saveSettings:(id)sender {
@@ -550,8 +550,19 @@ static NSInteger const kSocksPort = 10808;
         return;
     }
     [[NSFileManager defaultManager] setAttributes:@{NSFilePosixPermissions: @0600} ofItemAtPath:[self linkPath] error:NULL];
-    self.settingsStatusField.stringValue = @"Saved.";
+    self.settingsStatusField.stringValue = @"Configuration saved.";
     self.settingsStatusField.textColor = [NSColor systemGreenColor];
+    [self updateConfigurationLabels];
+    [self.settingsWindow orderOut:nil];
+}
+
+- (void)updateConfigurationLabels {
+    BOOL hasConfiguration = [self savedLink].length > 0;
+    NSString *title = hasConfiguration ? @"Change VPN Configuration" : @"Add VPN Configuration";
+    self.configurationMenuItem.title = [title stringByAppendingString:@"..."];
+    self.settingsWindow.title = title;
+    self.configurationHeadingField.stringValue = title;
+    self.configurationSaveButton.title = hasConfiguration ? @"Save Configuration" : @"Add Configuration";
 }
 
 - (void)cancelSettings:(id)sender {
@@ -598,6 +609,24 @@ static NSInteger const kSocksPort = 10808;
     alert.informativeText = detail ?: @"";
     [alert addButtonWithTitle:@"OK"];
     [alert runModal];
+}
+
+- (void)showConnectionFailure:(NSString *)detail {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"DongVPN could not connect";
+    alert.informativeText = [NSString stringWithFormat:@"%@\n\nPlease email simondong0919@gmail.com for help.", detail ?: @"The tunnel did not return a public IP address."];
+    [alert addButtonWithTitle:@"Email Support"];
+    [alert addButtonWithTitle:@"OK"];
+    if ([alert runModal] == NSAlertFirstButtonReturn) {
+        NSURLComponents *mail = [[NSURLComponents alloc] init];
+        mail.scheme = @"mailto";
+        mail.path = @"simondong0919@gmail.com";
+        mail.queryItems = @[
+            [NSURLQueryItem queryItemWithName:@"subject" value:@"DongVPN connection help"],
+            [NSURLQueryItem queryItemWithName:@"body" value:[NSString stringWithFormat:@"DongVPN could not connect or verify the VPN connection.\n\n%@", detail ?: @"No public IP response was received."]]
+        ];
+        if (mail.URL) [[NSWorkspace sharedWorkspace] openURL:mail.URL];
+    }
 }
 
 - (NSString *)appSupportPath {
