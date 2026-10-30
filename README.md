@@ -4,7 +4,7 @@
 
 <p align="center"><a href="https://52.34.245.131:8443"><strong>Download DongVPN for macOS</strong></a></p>
 
-The download page requires a password. Request access by emailing [DongVPN support](mailto:simondong0919@gmail.com).
+The download page requires a password. After signing in, the DMG download button appears above a bilingual Mac installation guide. Request access by emailing [DongVPN support](mailto:simondong0919@gmail.com).
 
 ## Overview
 
