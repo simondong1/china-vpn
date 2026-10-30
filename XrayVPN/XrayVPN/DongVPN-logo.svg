@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="0.78" y2="1">
+      <stop offset="0" stop-color="#10776c"/>
+      <stop offset="1" stop-color="#072f39"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#field)"/>
+  <rect x="33" y="33" width="958" height="958" rx="202" fill="none" stroke="#b2ecd1" stroke-opacity=".42" stroke-width="4"/>
+  <path d="M171 286v-57h73l29 29" fill="none" stroke="#d2f478" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="171" cy="287" r="23" fill="#d2f478"/>
+  <path d="M788 232h60v60" fill="none" stroke="#fa8765" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="848" cy="292" r="23" fill="#fa8765"/>
+  <text x="512" y="738" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="480" font-weight="700" fill="#f8fbf1">董</text>
+  <rect x="311" y="791" width="402" height="132" rx="66" fill="#d3f376"/>
+  <text x="512" y="879" text-anchor="middle" font-family="Arial, sans-serif" font-size="78" font-weight="700" fill="#0c3736">VPN</text>
+</svg>

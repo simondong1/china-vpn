@@ -11,9 +11,11 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>DongVPN</string>
+	<string>Dong VPN</string>
 	<key>CFBundleDisplayName</key>
-	<string>DongVPN</string>
+	<string>Dong VPN</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,7 +27,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>DongVPN needs permission to modify network settings</string>
+	<string>Dong VPN needs permission to modify network settings</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

@@ -1,14 +1,14 @@
-# DongVPN
+# Dong VPN
 
 > A macOS menu-bar client for a self-managed Xray server using VLESS + REALITY.
 
-<p align="center"><a href="https://52.34.245.131:8443"><strong>Download DongVPN for macOS</strong></a></p>
+<p align="center"><img src="XrayVPN/XrayVPN/Assets.xcassets/AppIcon.appiconset/AppIcon-256.png" alt="Dong VPN app icon" width="128"><br><a href="https://52.34.245.131:8443"><strong>Download Dong VPN for macOS</strong></a></p>
 
-The download page requires a password. Request access by emailing [DongVPN support](mailto:simondong0919@gmail.com).
+The download page requires a password. Request access by emailing [Dong VPN support](mailto:simondong0919@gmail.com).
 
 ## Overview
 
-DongVPN bundles the Xray client and manages a local connection from the macOS menu bar. It verifies the tunnel before enabling the system proxy, reports the public IP reached through the tunnel, and reconnects after network interruptions.
+Dong VPN bundles the Xray client and manages a local connection from the macOS menu bar. It verifies the tunnel before enabling the system proxy, reports the public IP reached through the tunnel, and reconnects after network interruptions.
 
 ## Features
 
@@ -21,11 +21,11 @@ DongVPN bundles the Xray client and manages a local connection from the macOS me
 
 ## Install
 
-1. Open the [DongVPN download page](https://52.34.245.131:8443) and enter the password provided by the owner.
-2. Open the downloaded DMG and drag DongVPN to Applications.
-3. Open DongVPN. Because the app is unsigned, macOS may ask you to approve it in **System Settings > Privacy & Security**.
+1. Open the [Dong VPN download page](https://52.34.245.131:8443) and enter the password provided by the owner.
+2. Open the downloaded DMG and drag Dong VPN to Applications.
+3. Open Dong VPN. Because the app is unsigned, macOS may ask you to approve it in **System Settings > Privacy & Security**.
 
-The app moves itself to Applications if it is opened from another location.
+The app is named **Dong VPN** in Applications and moves itself there if opened from another location.
 
 ## How It Works
 
@@ -59,6 +59,12 @@ The macOS GitHub Actions workflow builds an unsigned DMG and bundles Xray for Ap
 ## Support
 
 For download access or connection help, email [simondong0919@gmail.com](mailto:simondong0919@gmail.com). Issues and discussions on this public repository are visible to everyone; use email for private requests.
+
+### Website deployment
+
+`website/deploy.sh` deploys the download page to the existing Lightsail host. Set `DONGVPN_SSH_TARGET`, `DONGVPN_SSH_KEY`, and `DONGVPN_PUBLIC_URL` in the shell, then run `bash website/deploy.sh`. The SSH key and server configuration stay outside Git. Set `DONGVPN_DMG_PATH` only when intentionally replacing the downloadable app.
+
+The app icon source is `XrayVPN/XrayVPN/DongVPN-logo.svg`; its macOS icon sizes are generated with `python3 -m pip install Pillow && python3 XrayVPN/tools/render_app_icon.py`.
 
 ## License
 

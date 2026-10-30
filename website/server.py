@@ -17,6 +17,7 @@ MAX_FAILURES = 8
 FAILURES = {}
 ROOT = Path(os.environ.get("DONGVPN_WEB_ROOT", "/var/www/dongvpn-acme"))
 DOWNLOAD = Path(os.environ.get("DONGVPN_DOWNLOAD", "/srv/dongvpn/DongVPN.dmg"))
+ICON = Path(os.environ.get("DONGVPN_ICON_PATH", "/opt/dongvpn-download/dongvpn-icon.png"))
 CONFIG = Path(os.environ.get("DONGVPN_WEB_CONFIG", "/etc/dongvpn-download.json"))
 PUBLIC_URL = os.environ.get("DONGVPN_PUBLIC_URL", "")
 
@@ -25,7 +26,7 @@ PAGE = """<!doctype html>
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>DongVPN</title>
+<title>Dong VPN</title>
 <style>
 :root{font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#202124;background:#f5f7f8}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
@@ -35,9 +36,10 @@ label{display:block;font-size:14px;font-weight:600;margin-bottom:8px}input{width
 button,a.button{display:flex;width:100%;height:44px;align-items:center;justify-content:center;border:0;border-radius:5px;background:#126b5b;color:white;font-family:inherit;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer}
 button:hover,a.button:hover{background:#0d594c}.error{color:#a12622;margin:0 0 14px;font-size:14px}
 .tag{font-size:12px;font-weight:700;color:#126b5b;margin-bottom:16px;letter-spacing:.06em}
+.logo{display:block;width:72px;height:72px;object-fit:contain;margin:0 auto 20px}
 @media(prefers-color-scheme:dark){:root{color:#f1f3f4;background:#151a1c}main{background:#202729;border-color:#394448}p{color:#bec9ce}input{color:#f1f3f4;background:#151a1c;border-color:#59676c}}
 </style></head>
-<body><main><div class="tag">DONGVPN · macOS</div><h1>安全下载 / Secure download</h1>
+<body><main><img class="logo" src="/dongvpn-icon.png" alt="董 VPN"><div class="tag">DONG VPN · macOS</div><h1>安全下载 / Secure download</h1>
 <p>输入下载密码以继续。Enter the password to continue.</p>
 {content}
 </main></body></html>"""
@@ -105,7 +107,7 @@ class DownloadHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         for key, value in headers:
@@ -157,6 +159,21 @@ class DownloadHandler(http.server.BaseHTTPRequestHandler):
             return
         path = urllib.parse.urlsplit(self.path).path
         config = load_config()
+        if path == "/dongvpn-icon.png":
+            try:
+                body = ICON.read_bytes()
+            except OSError:
+                self.send_error(404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            return
         if path == "/logout":
             self.send_redirect("/", [("Set-Cookie", "dongvpn_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict")])
             return

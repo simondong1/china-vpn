@@ -38,30 +38,30 @@ static NSString *L(NSString *english) {
             @"Change VPN Configuration...": @"更改 VPN 配置…",
             @"Add VPN Configuration": @"添加 VPN 配置",
             @"Change VPN Configuration": @"更改 VPN 配置",
-            @"Paste the vless:// link for your VPN. DongVPN saves it and connects automatically.": @"粘贴你的 vless:// 链接，DongVPN 会自动保存并连接。",
+            @"Paste the vless:// link for your VPN. Dong VPN saves it and connects automatically.": @"粘贴你的 vless:// 链接，Dong VPN 会自动保存并连接。",
             @"Add Configuration": @"添加配置",
             @"Save Configuration": @"保存配置",
             @"Configuration saved.": @"配置已保存。",
             @"Could not save settings.": @"无法保存设置。",
-            @"Quit DongVPN": @"退出 DongVPN",
-            @"DongVPN is off": @"DongVPN 已关闭",
+            @"Quit Dong VPN": @"退出 Dong VPN",
+            @"Dong VPN is off": @"Dong VPN 已关闭",
             @"Click the network icon in the menu bar to connect.": @"点按菜单栏中的网络图标即可连接。",
-            @"DongVPN is connected": @"DongVPN 已连接",
+            @"Dong VPN is connected": @"Dong VPN 已连接",
             @"Your internet traffic now goes through %@. Click the network icon anytime to disconnect.": @"你的网络流量现在经由 %@ 传输。随时点按网络图标即可断开连接。",
-            @"DongVPN is reconnecting": @"DongVPN 正在重新连接",
-            @"The VPN server isn't reachable yet. DongVPN keeps trying automatically.": @"暂时无法连接 VPN 服务器，DongVPN 会自动重试。",
-            @"DongVPN is connecting": @"DongVPN 正在连接",
+            @"Dong VPN is reconnecting": @"Dong VPN 正在重新连接",
+            @"The VPN server isn't reachable yet. Dong VPN keeps trying automatically.": @"暂时无法连接 VPN 服务器，Dong VPN 会自动重试。",
+            @"Dong VPN is connecting": @"Dong VPN 正在连接",
             @"This usually takes a few seconds.": @"通常只需几秒钟。",
             @"VPN configuration is missing or invalid.": @"VPN 配置缺失或无效。",
-            @"Use the DongVPN menu to add a VPN configuration.": @"请通过 DongVPN 菜单添加 VPN 配置。",
-            @"DongVPN could not connect": @"DongVPN 无法连接",
+            @"Use the Dong VPN menu to add a VPN configuration.": @"请通过 Dong VPN 菜单添加 VPN 配置。",
+            @"Dong VPN could not connect": @"Dong VPN 无法连接",
             @"%@\n\nPlease email simondong0919@gmail.com for help.": @"%@\n\n如需帮助，请发送邮件至 simondong0919@gmail.com。",
             @"The tunnel did not return a public IP address.": @"隧道没有返回公网 IP 地址。",
             @"Email Support": @"发送邮件求助",
             @"OK": @"好",
             @"Could not change Open at Login.": @"无法更改“登录时打开”设置。",
             @"Could not restore the previous proxy settings.": @"无法恢复之前的代理设置。",
-            @"DongVPN restored after an interrupted session.": @"DongVPN 已从中断的会话中恢复。",
+            @"Dong VPN restored after an interrupted session.": @"Dong VPN 已从中断的会话中恢复。",
             @"Previous macOS proxy settings could not be restored.": @"无法恢复之前的 macOS 代理设置。",
             @"Could not enable the macOS proxy. %@": @"无法启用 macOS 代理。%@",
             @"No macOS network service was found.": @"未找到 macOS 网络服务。",
@@ -115,9 +115,9 @@ static NSString *L(NSString *english) {
     self.statusBarItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
     self.statusBarItem.button.image = [self statusImageConnected:NO];
     self.statusBarItem.button.image.template = YES;
-    self.statusBarItem.button.toolTip = @"DongVPN";
+    self.statusBarItem.button.toolTip = @"Dong VPN";
 
-    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"DongVPN"];
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Dong VPN"];
     menu.delegate = self;
     self.statusMenuItem = [menu addItemWithTitle:L(@"Disconnected") action:nil keyEquivalent:@""];
     self.statusMenuItem.enabled = NO;
@@ -136,7 +136,7 @@ static NSString *L(NSString *english) {
     if ([self savedLink].length > 0) self.configurationMenuItem.title = L(@"Change VPN Configuration...");
     [menu addItem:[NSMenuItem separatorItem]];
 
-    NSMenuItem *quitItem = [menu addItemWithTitle:L(@"Quit DongVPN") action:@selector(quitApp:) keyEquivalent:@"q"];
+    NSMenuItem *quitItem = [menu addItemWithTitle:L(@"Quit Dong VPN") action:@selector(quitApp:) keyEquivalent:@"q"];
     quitItem.target = self;
     self.statusBarItem.menu = menu;
 
@@ -147,7 +147,7 @@ static NSString *L(NSString *english) {
         NSError *error = nil;
         if (![self restoreSystemProxy:&error]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [self showError:L(@"DongVPN restored after an interrupted session.") detail:error.localizedDescription ?: L(@"Previous macOS proxy settings could not be restored.")];
+                [self showError:L(@"Dong VPN restored after an interrupted session.") detail:error.localizedDescription ?: L(@"Previous macOS proxy settings could not be restored.")];
             });
         }
     }
@@ -284,16 +284,16 @@ static NSString *L(NSString *english) {
 }
 
 - (void)showStatusPopover {
-    NSString *title = L(@"DongVPN is off");
+    NSString *title = L(@"Dong VPN is off");
     NSString *detail = L(@"Click the network icon in the menu bar to connect.");
     if (self.isConnected) {
-        title = L(@"DongVPN is connected");
+        title = L(@"Dong VPN is connected");
         detail = [NSString stringWithFormat:L(@"Your internet traffic now goes through %@. Click the network icon anytime to disconnect."), self.publicIP];
     } else if (self.isWaitingToRetry) {
-        title = L(@"DongVPN is reconnecting");
-        detail = L(@"The VPN server isn't reachable yet. DongVPN keeps trying automatically.");
+        title = L(@"Dong VPN is reconnecting");
+        detail = L(@"The VPN server isn't reachable yet. Dong VPN keeps trying automatically.");
     } else if (self.isTransitioning) {
-        title = L(@"DongVPN is connecting");
+        title = L(@"Dong VPN is connecting");
         detail = L(@"This usually takes a few seconds.");
     }
 
@@ -340,7 +340,7 @@ static NSString *L(NSString *english) {
     if (!connection) {
         self.isTransitioning = NO;
         [self updateStatusTitle:L(@"Disconnected") connected:NO];
-        [self showError:L(@"VPN configuration is missing or invalid.") detail:error.localizedDescription ?: L(@"Use the DongVPN menu to add a VPN configuration.")];
+        [self showError:L(@"VPN configuration is missing or invalid.") detail:error.localizedDescription ?: L(@"Use the Dong VPN menu to add a VPN configuration.")];
         return;
     }
     self.socksPort = [self availableSocksPort];
@@ -515,12 +515,12 @@ static NSString *L(NSString *english) {
     self.toggleMenuItem.title = connected ? L(@"Disconnect") : L(@"Connect");
     self.statusBarItem.button.image = [self statusImageConnected:connected];
     self.statusBarItem.button.image.template = YES;
-    self.statusBarItem.button.toolTip = connected && self.publicIP.length > 0 ? [NSString stringWithFormat:@"DongVPN - %@", self.publicIP] : @"DongVPN";
+    self.statusBarItem.button.toolTip = connected && self.publicIP.length > 0 ? [NSString stringWithFormat:@"Dong VPN - %@", self.publicIP] : @"Dong VPN";
 }
 
 - (NSImage *)statusImageConnected:(BOOL)connected {
     if (@available(macOS 11.0, *)) {
-        return [NSImage imageWithSystemSymbolName:(connected ? @"network" : @"network.slash") accessibilityDescription:@"DongVPN"];
+        return [NSImage imageWithSystemSymbolName:(connected ? @"network" : @"network.slash") accessibilityDescription:@"Dong VPN"];
     }
     return [NSImage imageNamed:NSImageNameNetwork];
 }
@@ -911,7 +911,7 @@ static NSString *L(NSString *english) {
     heading.frame = NSMakeRect(28, 220, 484, 24);
     [content addSubview:heading];
     self.configurationHeadingField = heading;
-    NSTextField *help = [NSTextField wrappingLabelWithString:L(@"Paste the vless:// link for your VPN. DongVPN saves it and connects automatically.")];
+    NSTextField *help = [NSTextField wrappingLabelWithString:L(@"Paste the vless:// link for your VPN. Dong VPN saves it and connects automatically.")];
     help.frame = NSMakeRect(28, 172, 484, 36);
     [content addSubview:help];
 
@@ -1043,7 +1043,7 @@ static NSString *L(NSString *english) {
 
 - (void)showConnectionFailure:(NSString *)detail {
     NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = L(@"DongVPN could not connect");
+    alert.messageText = L(@"Dong VPN could not connect");
     alert.informativeText = [NSString stringWithFormat:L(@"%@\n\nPlease email simondong0919@gmail.com for help."), detail ?: L(@"The tunnel did not return a public IP address.")];
     [alert addButtonWithTitle:L(@"Email Support")];
     [alert addButtonWithTitle:L(@"OK")];
@@ -1052,8 +1052,8 @@ static NSString *L(NSString *english) {
         mail.scheme = @"mailto";
         mail.path = @"simondong0919@gmail.com";
         mail.queryItems = @[
-            [NSURLQueryItem queryItemWithName:@"subject" value:@"DongVPN connection help"],
-            [NSURLQueryItem queryItemWithName:@"body" value:[NSString stringWithFormat:@"DongVPN could not connect or verify the VPN connection.\n\n%@", detail ?: @"No public IP response was received."]]
+            [NSURLQueryItem queryItemWithName:@"subject" value:@"Dong VPN connection help"],
+            [NSURLQueryItem queryItemWithName:@"body" value:[NSString stringWithFormat:@"Dong VPN could not connect or verify the VPN connection.\n\n%@", detail ?: @"No public IP response was received."]]
         ];
         if (mail.URL) [[NSWorkspace sharedWorkspace] openURL:mail.URL];
     }
