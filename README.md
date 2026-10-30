@@ -41,7 +41,7 @@ Build on macOS 12 or later with Xcode:
 xcodebuild -project XrayVPN/XrayVPN.xcodeproj -scheme XrayVPN -configuration Release
 ```
 
-The macOS GitHub Actions workflow builds an unsigned DMG and bundles Xray for Apple silicon and Intel. It uploads the DMG as a 30-day workflow artifact, available from the completed run's **Artifacts** section. When configured, `DONGVPN_VLESS_LINK` is embedded in the app built by Actions. Keep real links in the repository secret only; anyone who receives a configured app can extract its server configuration. The workflow does not create GitHub releases.
+The macOS GitHub Actions workflow builds an unsigned DMG and bundles Xray for Apple silicon and Intel, but does not retain or publish the DMG. When configured, `DONGVPN_VLESS_LINK` is embedded in the app built by Actions. Keep real links in the repository secret only; anyone who receives a configured app can extract its server configuration. The workflow does not create GitHub releases.
 
 ## Optional Server Deployment
 

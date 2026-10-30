@@ -66,14 +66,6 @@ jobs:
         test -d build/DongVPN/DongVPN.app
         hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
 
-    - name: Upload macOS DMG
-      uses: actions/upload-artifact@v7
-      with:
-        name: DongVPN-macOS-${{ github.run_number }}
-        path: XrayVPN/DongVPN.dmg
-        if-no-files-found: error
-        retention-days: 30
-
     - name: Report Xcode failure
       if: failure()
       shell: bash
