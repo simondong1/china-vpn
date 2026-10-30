@@ -4,13 +4,13 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-REGION=us-west-2          # Oregon: closest AWS US region to China
-AZ=us-west-2a
-NAME=vpn-us
-KEY_NAME=vpn-us-key
+REGION="${DONGVPN_AWS_REGION:-${AWS_REGION:-us-west-2}}"
+AZ="${DONGVPN_AWS_AZ:-${AWS_AVAILABILITY_ZONE:-${REGION}a}}"
+NAME="${DONGVPN_INSTANCE_NAME:-dongvpn-server}"
+KEY_NAME="${DONGVPN_KEY_NAME:-dongvpn-server-key}"
 BUNDLE=nano_3_0           # $5/mo: 2 vCPU burst, 0.5 GB RAM, 1 TB transfer, IPv4
 BLUEPRINT=ubuntu_24_04
-STATIC_IP=vpn-us-ip
+STATIC_IP="${DONGVPN_STATIC_IP_NAME:-dongvpn-server-ip}"
 KEY=keys/vpn_key
 LS="aws lightsail --region $REGION"
 

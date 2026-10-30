@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-macos-app.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-14
@@ -52,13 +55,14 @@ jobs:
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Upload DMG
+      if: ${{ false }}
       uses: actions/upload-artifact@v4
       with:
         name: VPN-macOS-${{ steps.vars.outputs.sha_short }}
         path: macos-vpn-app/VPN.dmg
 
     - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: ${{ false }}
       uses: softprops/action-gh-release@v1
       with:
         files: macos-vpn-app/VPN.dmg

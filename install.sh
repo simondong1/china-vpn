@@ -1,10 +1,15 @@
 #!/bin/bash
 # Installs or updates DongVPN. Downloads made with curl are not quarantined,
 # so macOS opens the app without a Gatekeeper prompt.
-#   curl -fsSL https://github.com/simondong1/china-vpn/releases/latest/download/install.sh | bash
+# Run beside a downloaded DongVPN.dmg, or pass its local path as the first argument.
 set -euo pipefail
 
-DMG_URL="${DONGVPN_DMG_URL:-https://github.com/simondong1/china-vpn/releases/latest/download/DongVPN.dmg}"
+DMG_SOURCE="${1:-DongVPN.dmg}"
+if [[ ! -f "$DMG_SOURCE" ]]; then
+  echo "DongVPN.dmg was not found. Download it from the authorized distribution page first." >&2
+  exit 1
+fi
+DMG_SOURCE="$(cd "$(dirname "$DMG_SOURCE")" && pwd)/$(basename "$DMG_SOURCE")"
 WORK=$(mktemp -d)
 MOUNT="$WORK/mnt"
 cleanup() {
@@ -14,9 +19,8 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Downloading DongVPN... / 正在下载 DongVPN…"
-curl -fL --progress-bar -o "$WORK/DongVPN.dmg" "$DMG_URL"
 mkdir -p "$MOUNT"
-hdiutil attach "$WORK/DongVPN.dmg" -nobrowse -readonly -mountpoint "$MOUNT" -quiet
+hdiutil attach "$DMG_SOURCE" -nobrowse -readonly -mountpoint "$MOUNT" -quiet
 
 DEST=/Applications
 if [[ ! -w $DEST ]]; then

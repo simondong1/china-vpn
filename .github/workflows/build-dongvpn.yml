@@ -3,14 +3,13 @@ name: Build DongVPN
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
     paths:
       - 'XrayVPN/**'
-      - '.github/workflows/build-xrayvpn.yml'
+      - '.github/workflows/build-dongvpn.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -56,7 +55,7 @@ jobs:
           esac
           printf '%s\n' "$DONGVPN_VLESS_LINK" > build/DongVPN/DongVPN.app/Contents/Resources/default.vless
         elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-          echo "::error::Set the DONGVPN_VLESS_LINK repository secret before tagging a release."
+          echo "::error::Set the DONGVPN_VLESS_LINK repository secret before tagging a build."
           exit 1
         else
           echo "::warning::DONGVPN_VLESS_LINK is not set; this build asks for a vless:// link on first launch."
@@ -65,7 +64,6 @@ jobs:
         ln -s /Applications build/DongVPN/Applications
         test "$(find build/DongVPN -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -eq 2
         test -d build/DongVPN/DongVPN.app
-
         hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
 
     - name: Report Xcode failure
@@ -88,51 +86,3 @@ jobs:
         name: DongVPN-xcode-diagnostics-${{ github.run_id }}
         path: XrayVPN/build/xcodebuild.log
         if-no-files-found: warn
-
-    - name: Get short SHA
-      id: vars
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-    - name: Upload DMG
-      uses: actions/upload-artifact@v7
-      with:
-        name: DongVPN-macOS-${{ steps.vars.outputs.sha_short }}
-        path: XrayVPN/DongVPN.dmg
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v3
-      with:
-        files: |
-          XrayVPN/DongVPN.dmg
-          install.sh
-        body: |
-          DongVPN - macOS VPN Menu Bar App
-
-          **Fastest install (no security prompts):** open Terminal and paste
-          ```
-          curl -fsSL https://github.com/simondong1/china-vpn/releases/latest/download/install.sh | bash
-          ```
-          DongVPN installs, connects, and opens at login from then on. Run the same command to update.
-
-          **Or install from the DMG:**
-          1. Download DongVPN.dmg, open it, and drag DongVPN to Applications
-          2. Open DongVPN. The first time, macOS blocks it: open System Settings > Privacy & Security and choose Open Anyway (on macOS 14 and earlier, Control-click the app and choose Open). This is needed only once.
-          3. DongVPN connects automatically
-
-          **中文安装说明：** 打开“终端”，粘贴上面的命令并按回车。DongVPN 会自动安装、连接，并在以后登录时自动打开。再次运行同一命令即可更新。
-          也可以下载 DongVPN.dmg，将 DongVPN 拖到“应用程序”后打开。第一次打开时 macOS 会阻止它：请前往“系统设置 > 隐私与安全性”，点按“仍要打开”（只需一次）。
-
-          **Features:**
-          - Connects automatically on launch and at login; nothing to paste or configure
-          - English and Chinese interface, chosen from the Mac's language
-          - No password prompts on administrator accounts
-          - Checks the tunnel every minute and reconnects automatically after network changes, sleep, server outages, or an Xray crash
-          - Local network and mainland China sites stay direct; everything else goes through the VPN
-          - Menu bar status with one-click Connect/Disconnect and Open at Login
-          - Restores previous proxy settings when disconnected or quit
-          - Email support option when a connection you start fails
-
-          This uses the macOS system SOCKS proxy and is not a Network Extension packet tunnel. Apps that ignore the system proxy and UDP traffic may bypass it.
-
-          To use a different server, choose Change VPN Configuration from the menu bar menu and paste its vless:// link.

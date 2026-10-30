@@ -8,6 +8,9 @@ on:
       - '.github/workflows/build-simple.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-14
@@ -34,13 +37,14 @@ jobs:
       run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Upload binary
+      if: ${{ false }}
       uses: actions/upload-artifact@v4
       with:
         name: vpn-macos-${{ steps.vars.outputs.sha_short }}
         path: simple-vpn/vpn-macos.zip
 
     - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: ${{ false }}
       uses: softprops/action-gh-release@v1
       with:
         files: simple-vpn/vpn-macos.zip

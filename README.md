@@ -1,54 +1,65 @@
 # DongVPN
 
-This repository contains an AWS Lightsail Xray server and a small macOS menu bar client.
+> A macOS menu-bar client for a self-managed Xray server using VLESS + REALITY.
 
-The server uses VLESS + REALITY over TCP 443. `deploy.sh` provisions it and writes the generated connection link to `out/vpn-link.txt`.
+<p align="center"><a href="https://52.34.245.131:8443"><strong>Download DongVPN for macOS</strong></a></p>
 
-## Install on a Mac
+The download page requires a password. Request access by emailing [DongVPN support](mailto:simondong0919@gmail.com).
 
-Open Terminal and paste:
+## Overview
 
-```bash
-curl -fsSL https://github.com/simondong1/china-vpn/releases/latest/download/install.sh | bash
+DongVPN bundles the Xray client and manages a local connection from the macOS menu bar. It verifies the tunnel before enabling the system proxy, reports the public IP reached through the tunnel, and reconnects after network interruptions.
+
+## Features
+
+- One-click connect and disconnect from the menu bar
+- Automatic connection at launch and optional login startup
+- Tunnel checks, reconnects, and recovery after Xray exits
+- Automatic selection of an available local SOCKS port
+- English and Chinese interface, based on the Mac's preferred language
+- Restores the proxy settings that were active before connecting
+
+## Install
+
+1. Open the [DongVPN download page](https://52.34.245.131:8443) and enter the password provided by the owner.
+2. Open the downloaded DMG and drag DongVPN to Applications.
+3. Open DongVPN. Because the app is unsigned, macOS may ask you to approve it in **System Settings > Privacy & Security**.
+
+The app moves itself to Applications if it is opened from another location.
+
+## How It Works
+
+DongVPN starts the bundled Xray process and routes eligible macOS network services through the local SOCKS proxy. Mainland China destinations and local network addresses are configured to connect directly. The tunnel check requests a public IP through Xray before enabling the system proxy.
+
+This is not a native macOS Network Extension VPN. Apps that ignore the system SOCKS proxy and UDP traffic may bypass the connection.
+
+## Build
+
+Build on macOS 12 or later with Xcode:
+
+```sh
+xcodebuild -project XrayVPN/XrayVPN.xcodeproj -scheme XrayVPN -configuration Release
 ```
 
-DongVPN installs into Applications, connects, and opens at login from then on. Files downloaded this way are not quarantined, so macOS shows no security prompt. Run the same command to update.
+The macOS GitHub Actions workflow builds an unsigned DMG and bundles Xray for Apple silicon and Intel. When configured, `DONGVPN_VLESS_LINK` is embedded in the app built by Actions. Keep real links in the repository secret only; anyone who receives a configured app can extract its server configuration. The workflow does not publish DMGs or create GitHub releases.
 
-中文：打开“终端”，粘贴上面的命令并按回车。DongVPN 会自动安装、连接，并在以后登录时自动打开。应用界面会根据 Mac 的语言显示中文。
+## Optional Server Deployment
 
-To install from the DMG instead, download `DongVPN.dmg` from the latest release, drag DongVPN to Applications, and open it. The first time, macOS blocks the unsigned app: open **System Settings > Privacy & Security** and choose **Open Anyway** (on macOS 14 and earlier, Control-click the app and choose **Open**). If DongVPN is opened from somewhere other than Applications, it moves itself there.
+`deploy.sh` provisions a Lightsail VM and runs `server-setup.sh`. It requires the AWS CLI and creates billable cloud resources. Resource names and region can be set with `DONGVPN_INSTANCE_NAME`, `DONGVPN_KEY_NAME`, `DONGVPN_STATIC_IP_NAME`, `DONGVPN_AWS_REGION`, and `DONGVPN_AWS_AZ`. The generated connection link and SSH key are written under ignored `out/` and `keys/` directories.
 
-## Using DongVPN
+`destroy.sh` removes the resources selected by those same settings. Review the names and AWS account before running it.
 
-- DongVPN connects on launch and at login, and shows a short confirmation under its menu bar icon the first time. If the user chose **Disconnect** before quitting, it stays disconnected until **Connect** is chosen or the app is opened again.
-- It tests the tunnel by requesting a public IP through it before turning on the system proxy, and shows that IP in the menu.
-- If the server is unreachable, DongVPN keeps retrying in the background without dialogs, and retries immediately when the network comes back or the Mac wakes. If Xray crashes, it restarts it; after repeated crashes it restores the proxy and reconnects.
-- While connected, DongVPN checks the tunnel every minute. After two failed checks it turns the proxy off, so a dead server does not block browsing, and reconnects automatically.
-- If another app already uses SOCKS port 10808, DongVPN picks the next free port.
-- The menu, messages, and status popover are in Chinese when the Mac's preferred language is Chinese.
-- Connection events are logged; view them with `log show --last 1h --predicate 'process == "DongVPN"'`.
-- Local network addresses and mainland China sites (`geosite:cn`, `geoip:cn`) connect directly; everything else goes through the VPN.
-- On administrator accounts, connecting and disconnecting never ask for a password. If macOS refuses the change (for example on a standard account), DongVPN asks for administrator approval instead.
-- **Disconnect**, **Quit**, logout, and shutdown restore the proxy settings that were active before connecting. **Open at Login** in the menu turns the login item off or on (macOS 13 and later).
-- If a connection the user started fails, DongVPN offers to open an email to `simondong0919@gmail.com`. The email is not sent automatically.
+## Security
 
-This app does not create a native macOS Network Extension VPN profile; it uses the macOS SOCKS proxy on port 10808 for enabled network services. Apps that ignore system proxy settings may bypass it.
+- Treat the download password and VLESS link as credentials. Share them only with people you trust.
+- The password gate controls access to the download page; it does not encrypt or revoke a DMG after download.
+- Keep generated keys, links, server state, and web configuration out of Git. The repository ignores local `keys/`, `out/`, and website secrets.
+- A public release or a copy of the DMG can expose the embedded VLESS link. Rotate the server credentials if a build is shared beyond its intended audience.
 
-## Building
+## Support
 
-Build the `XrayVPN` target in `XrayVPN/XrayVPN.xcodeproj` on macOS 12 or later. The app is named DongVPN. The GitHub Actions workflow builds an unsigned DMG on macOS 14 and bundles Xray and its geo data files for both Apple silicon and Intel Macs. Tagged releases publish the DMG and `install.sh`.
+For download access or connection help, email [simondong0919@gmail.com](mailto:simondong0919@gmail.com). This private repository's issues and discussions are available only to invited collaborators.
 
-The workflow embeds the server link from the `DONGVPN_VLESS_LINK` repository secret as `Resources/default.vless`, so users never paste a link. `deploy.sh` updates that secret when the GitHub CLI is installed; otherwise set it with `gh secret set DONGVPN_VLESS_LINK < out/vpn-link.txt`. Tagged releases fail if the secret is missing. Anyone with the DMG can read the embedded link, so share releases only with people who should use the server.
+## License
 
-To use a different server, choose **Change VPN Configuration...** and paste its `vless://` link. That link is stored in `~/Library/Application Support/XrayVPN` and takes priority over the built-in one.
-
-## Files
-
-```text
-deploy.sh        Create or update the Lightsail server
-destroy.sh       Delete the server and stop billing
-server-setup.sh  Install and configure Xray on the VM
-install.sh       Install or update the macOS app without Gatekeeper prompts
-out/             Generated link, QR code, and server metadata
-XrayVPN/         DongVPN macOS menu bar app project
-```
+No license file is included. Contact the maintainer before redistributing or reusing this project.

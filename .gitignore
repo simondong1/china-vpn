@@ -6,3 +6,6 @@ test/*.dat
 out/
 keys/
 test/
+website/DongVPN.dmg
+website/server-config.json
+website/__pycache__/
