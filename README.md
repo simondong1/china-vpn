@@ -58,7 +58,7 @@ The macOS GitHub Actions workflow builds an unsigned DMG and bundles Xray for Ap
 
 ## Support
 
-For download access or connection help, email [simondong0919@gmail.com](mailto:simondong0919@gmail.com). This private repository's issues and discussions are available only to invited collaborators.
+For download access or connection help, email [simondong0919@gmail.com](mailto:simondong0919@gmail.com). Issues and discussions on this public repository are visible to everyone; use email for private requests.
 
 ## License
 
