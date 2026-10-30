@@ -4,7 +4,7 @@
 
 <p align="center"><img src="XrayVPN/XrayVPN/Assets.xcassets/AppIcon.appiconset/AppIcon-256.png" alt="Dong VPN app icon" width="128"><br><a href="https://52.34.245.131:8443"><strong>Download Dong VPN for macOS</strong></a></p>
 
-The download page requires a password. Request access by emailing [Dong VPN support](mailto:simondong0919@gmail.com).
+The download page requires a password. After signing in, the DMG download button appears above a bilingual Mac installation guide. Request access by emailing [Dong VPN support](mailto:simondong0919@gmail.com).
 
 ## Overview
 
