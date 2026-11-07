@@ -22,6 +22,9 @@ jobs:
       working-directory: XrayVPN
       env:
         DONGVPN_VLESS_LINK: ${{ secrets.DONGVPN_VLESS_LINK }}
+        DONGVPN_HK_VLESS_LINK: ${{ secrets.DONGVPN_HK_VLESS_LINK }}
+        DONGVPN_CONTROL_URL: ${{ secrets.DONGVPN_CONTROL_URL }}
+        DONGVPN_CONTROL_TOKEN: ${{ secrets.DONGVPN_CONTROL_TOKEN }}
       run: |
         set -euo pipefail
         mkdir -p build
@@ -59,6 +62,29 @@ jobs:
           exit 1
         else
           echo "::warning::DONGVPN_VLESS_LINK is not set; this build asks for a vless:// link on first launch."
+        fi
+
+        if [ -n "${DONGVPN_HK_VLESS_LINK:-}" ]; then
+          case "$DONGVPN_HK_VLESS_LINK" in
+            vless://*) ;;
+            *) echo "::error::DONGVPN_HK_VLESS_LINK must be a vless:// link"; exit 1 ;;
+          esac
+          if [ -z "${DONGVPN_CONTROL_URL:-}" ] || [ -z "${DONGVPN_CONTROL_TOKEN:-}" ]; then
+            echo "::error::Hong Kong builds require DONGVPN_CONTROL_URL and DONGVPN_CONTROL_TOKEN."
+            exit 1
+          fi
+          case "$DONGVPN_CONTROL_URL" in
+            https://*) ;;
+            *) echo "::error::DONGVPN_CONTROL_URL must use HTTPS"; exit 1 ;;
+          esac
+          printf '%s\n' "$DONGVPN_HK_VLESS_LINK" > build/DongVPN/DongVPN.app/Contents/Resources/hong-kong.vless
+          printf '{"url":"%s","token":"%s","leaseSeconds":180}\n' \
+            "$DONGVPN_CONTROL_URL" "$DONGVPN_CONTROL_TOKEN" \
+            > build/DongVPN/DongVPN.app/Contents/Resources/hk-control.json
+          chmod 600 build/DongVPN/DongVPN.app/Contents/Resources/hong-kong.vless build/DongVPN/DongVPN.app/Contents/Resources/hk-control.json
+        elif [ -n "${DONGVPN_CONTROL_URL:-}${DONGVPN_CONTROL_TOKEN:-}" ]; then
+          echo "::error::Hong Kong control secrets require DONGVPN_HK_VLESS_LINK."
+          exit 1
         fi
 
         ln -s /Applications build/DongVPN/Applications

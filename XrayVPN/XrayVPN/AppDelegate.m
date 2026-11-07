@@ -79,6 +79,9 @@ static NSString *L(NSString *english) {
 @property (nonatomic, strong) NSMenuItem *toggleMenuItem;
 @property (nonatomic, strong) NSMenuItem *loginItemMenuItem;
 @property (nonatomic, strong) NSMenuItem *configurationMenuItem;
+@property (nonatomic, strong) NSMenuItem *serverMenuItem;
+@property (nonatomic, strong) NSMenuItem *oregonMenuItem;
+@property (nonatomic, strong) NSMenuItem *hongKongMenuItem;
 @property (nonatomic, strong) NSPopover *statusPopover;
 @property (nonatomic, strong) NSTask *xrayTask;
 @property (nonatomic, strong) NSWindow *settingsWindow;
@@ -97,6 +100,7 @@ static NSString *L(NSString *english) {
 @property (nonatomic, assign) BOOL isConnected;
 @property (nonatomic, assign) BOOL isTransitioning;
 @property (nonatomic, assign) BOOL isWaitingToRetry;
+@property (nonatomic, assign) BOOL remoteLeaseActive;
 @property (nonatomic, assign) NSInteger connectGeneration;
 @property (nonatomic, assign) NSInteger retryAttempt;
 @property (nonatomic, assign) NSInteger xrayRestartCount;
@@ -126,6 +130,16 @@ static NSString *L(NSString *english) {
     self.toggleMenuItem = [menu addItemWithTitle:L(@"Connect") action:@selector(toggleConnection:) keyEquivalent:@""];
     self.toggleMenuItem.target = self;
     [menu addItem:[NSMenuItem separatorItem]];
+
+    self.serverMenuItem = [menu addItemWithTitle:@"Server" action:nil keyEquivalent:@""];
+    NSMenu *serverMenu = [[NSMenu alloc] initWithTitle:@"Server"];
+    self.oregonMenuItem = [serverMenu addItemWithTitle:@"US West (Oregon)" action:@selector(selectServer:) keyEquivalent:@""];
+    self.oregonMenuItem.target = self;
+    self.oregonMenuItem.representedObject = @"us";
+    self.hongKongMenuItem = [serverMenu addItemWithTitle:@"Hong Kong" action:@selector(selectServer:) keyEquivalent:@""];
+    self.hongKongMenuItem.target = self;
+    self.hongKongMenuItem.representedObject = @"hk";
+    self.serverMenuItem.submenu = serverMenu;
 
     self.loginItemMenuItem = [menu addItemWithTitle:L(@"Open at Login") action:@selector(toggleLoginItem:) keyEquivalent:@""];
     self.loginItemMenuItem.target = self;
@@ -281,6 +295,25 @@ static NSString *L(NSString *english) {
 - (void)menuWillOpen:(NSMenu *)menu {
     [self.statusPopover close];
     self.loginItemMenuItem.state = [self isLoginItemEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    BOOL hasHongKong = [self bundledHongKongLink].length > 0 || [self profileLinkAtPath:[self hongKongLinkPath]].length > 0;
+    self.hongKongMenuItem.enabled = hasHongKong;
+    self.oregonMenuItem.state = [[self selectedProfile] isEqualToString:@"us"] ? NSControlStateValueOn : NSControlStateValueOff;
+    self.hongKongMenuItem.state = [[self selectedProfile] isEqualToString:@"hk"] ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)selectServer:(NSMenuItem *)sender {
+    NSString *profile = sender.representedObject;
+    if (![profile isEqualToString:@"us"] && ![profile isEqualToString:@"hk"]) return;
+    if (self.isTransitioning || [profile isEqualToString:[self selectedProfile]]) return;
+    if (profile.length == 0 || [self profileLinkForName:profile].length == 0) return;
+    BOOL reconnect = self.isConnected || self.isWaitingToRetry || [self wantsConnection];
+    if (self.isConnected || self.isWaitingToRetry) [self disconnect];
+    [[NSUserDefaults standardUserDefaults] setObject:profile forKey:@"SelectedServer"];
+    [self menuWillOpen:self.statusBarItem.menu];
+    if (reconnect) {
+        [self setWantsConnection:YES];
+        [self connectAutomatically:NO announce:NO];
+    }
 }
 
 - (void)showStatusPopover {
@@ -347,7 +380,8 @@ static NSString *L(NSString *english) {
 
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         NSError *backgroundError = nil;
-        BOOL ready = [self ensureXrayInstalled:&backgroundError]
+        BOOL ready = ![[self selectedProfile] isEqualToString:@"hk"] || [self prepareHongKongServer:&backgroundError];
+        if (ready) ready = [self ensureXrayInstalled:&backgroundError]
             && [self writeXrayConfigForConnection:connection error:&backgroundError]
             && [self startXray:&backgroundError];
         NSString *verifiedIP = nil;
@@ -356,6 +390,7 @@ static NSString *L(NSString *english) {
             if (!ready) {
                 NSLog(@"Connection attempt failed: %@", backgroundError.localizedDescription);
                 [self stopXray];
+                if (!automatic) [self releaseHongKongLease];
                 self.isTransitioning = NO;
                 if (automatic && [self wantsConnection]) {
                     [self scheduleAutomaticRetry];
@@ -370,6 +405,7 @@ static NSString *L(NSString *english) {
             if (![self enableSystemProxy:&proxyError]) {
                 NSLog(@"Could not enable the system proxy: %@", proxyError.localizedDescription);
                 [self stopXray];
+                [self releaseHongKongLease];
                 self.isTransitioning = NO;
                 [self updateStatusTitle:L(@"Disconnected") connected:NO];
                 [self showConnectionFailure:[NSString stringWithFormat:L(@"Could not enable the macOS proxy. %@"), proxyError.localizedDescription ?: @""]];
@@ -386,6 +422,79 @@ static NSString *L(NSString *english) {
             if (announce) [self showStatusPopover];
         });
     });
+}
+
+- (NSDictionary *)hongKongControlConfig {
+    NSString *path = [[NSBundle mainBundle] pathForResource:@"hk-control" ofType:@"json"];
+    NSData *data = path ? [NSData dataWithContentsOfFile:path] : nil;
+    NSDictionary *config = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+    return [config[@"url"] isKindOfClass:[NSString class]] && [config[@"token"] isKindOfClass:[NSString class]] ? config : nil;
+}
+
+- (NSString *)hongKongClientID {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *clientID = [defaults stringForKey:@"HongKongClientID"];
+    if (!clientID.length) {
+        clientID = [[NSUUID UUID].UUIDString lowercaseString];
+        [defaults setObject:clientID forKey:@"HongKongClientID"];
+    }
+    return clientID;
+}
+
+- (NSDictionary *)requestHongKongControl:(NSString *)route method:(NSString *)method error:(NSError **)error {
+    NSDictionary *config = [self hongKongControlConfig];
+    if (!config) {
+        if (error) *error = [NSError errorWithDomain:@"DongVPNControl" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Hong Kong start control is not configured in this build."}];
+        return nil;
+    }
+    NSString *clientID = [self hongKongClientID];
+    NSString *path = route;
+    if ([method isEqualToString:@"GET"]) path = [NSString stringWithFormat:@"%@?clientId=%@", route, clientID];
+    NSString *base = [config[@"url"] hasSuffix:@"/"] ? config[@"url"] : [config[@"url"] stringByAppendingString:@"/"];
+    NSURL *url = [NSURL URLWithString:[base stringByAppendingString:[path hasPrefix:@"/"] ? [path substringFromIndex:1] : path]];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:10];
+    request.HTTPMethod = method;
+    [request setValue:[NSString stringWithFormat:@"Bearer %@", config[@"token"]] forHTTPHeaderField:@"Authorization"];
+    if (![method isEqualToString:@"GET"]) {
+        request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{@"clientId": clientID} options:0 error:error];
+        [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    }
+    NSURLResponse *response = nil;
+    NSData *data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:error];
+    if (!data) return nil;
+    NSInteger status = [(NSHTTPURLResponse *)response statusCode];
+    NSDictionary *result = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+    if (status < 200 || status >= 300 || ![result isKindOfClass:[NSDictionary class]]) {
+        if (error) *error = [NSError errorWithDomain:@"DongVPNControl" code:status userInfo:@{NSLocalizedDescriptionKey: result[@"error"] ?: @"Could not contact the Hong Kong connection service."}];
+        return nil;
+    }
+    return result;
+}
+
+- (BOOL)prepareHongKongServer:(NSError **)error {
+    NSDictionary *result = [self requestHongKongControl:@"/connect" method:@"POST" error:error];
+    if (!result) return NO;
+    self.remoteLeaseActive = YES;
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:240];
+    while ([deadline timeIntervalSinceNow] > 0) {
+        if ([result[@"state"] isEqualToString:@"running"]) return YES;
+        [NSThread sleepForTimeInterval:5];
+        result = [self requestHongKongControl:@"/status" method:@"GET" error:error];
+        if (!result) return NO;
+    }
+    if (error) *error = [NSError errorWithDomain:@"DongVPNControl" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Hong Kong is taking too long to start. Try connecting again shortly."}];
+    return NO;
+}
+
+- (void)heartbeatHongKongLease {
+    if (!self.remoteLeaseActive) return;
+    [self requestHongKongControl:@"/heartbeat" method:@"POST" error:NULL];
+}
+
+- (void)releaseHongKongLease {
+    if (!self.remoteLeaseActive) return;
+    self.remoteLeaseActive = NO;
+    [self requestHongKongControl:@"/disconnect" method:@"POST" error:NULL];
 }
 
 - (NSInteger)availableSocksPort {
@@ -430,6 +539,7 @@ static NSString *L(NSString *english) {
     self.isCheckingHealth = YES;
     NSInteger generation = self.connectGeneration;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        [self heartbeatHongKongLease];
         NSString *ip = nil;
         NSError *error = nil;
         BOOL healthy = [self verifyTunnelAndGetPublicIP:&ip error:&error];
@@ -492,6 +602,9 @@ static NSString *L(NSString *english) {
     self.isTransitioning = YES;
     [self stopHealthChecks];
     [self stopXray];
+    if (self.remoteLeaseActive) {
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ [self releaseHongKongLease]; });
+    }
     NSError *error = nil;
     if (![self restoreSystemProxy:&error]) {
         [self showError:L(@"Could not restore the previous proxy settings.") detail:error.localizedDescription];
@@ -505,6 +618,7 @@ static NSString *L(NSString *english) {
 - (void)disconnectSilently {
     [self stopHealthChecks];
     [self stopXray];
+    [self releaseHongKongLease];
     if (self.proxyBackups.count > 0) [self restoreSystemProxy:NULL];
     self.isConnected = NO;
     self.publicIP = nil;
@@ -557,7 +671,7 @@ static NSString *L(NSString *english) {
                 @"network": connection[@"network"], @"security": @"reality",
                 @"realitySettings": @{
                     @"serverName": connection[@"sni"], @"fingerprint": connection[@"fingerprint"],
-                    @"publicKey": connection[@"publicKey"], @"shortId": connection[@"shortID"]
+                    @"password": connection[@"publicKey"], @"shortId": connection[@"shortID"]
                 }
             }
         }, @{ @"tag": @"direct", @"protocol": @"freedom" }]
@@ -959,15 +1073,17 @@ static NSString *L(NSString *english) {
         return;
     }
     NSData *linkData = [[self.linkField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] dataUsingEncoding:NSUTF8StringEncoding];
-    if (![self writeXrayConfigForConnection:connection error:&error] || ![linkData writeToFile:[self linkPath] options:NSDataWritingAtomic error:&error]) {
+    NSString *linkPath = [self selectedLinkPath];
+    if (![self writeXrayConfigForConnection:connection error:&error] || ![linkData writeToFile:linkPath options:NSDataWritingAtomic error:&error]) {
         self.settingsStatusField.stringValue = error.localizedDescription ?: L(@"Could not save settings.");
         self.settingsStatusField.textColor = [NSColor systemRedColor];
         return;
     }
-    [[NSFileManager defaultManager] setAttributes:@{NSFilePosixPermissions: @0600} ofItemAtPath:[self linkPath] error:NULL];
+    [[NSFileManager defaultManager] setAttributes:@{NSFilePosixPermissions: @0600} ofItemAtPath:linkPath error:NULL];
     self.settingsStatusField.stringValue = L(@"Configuration saved.");
     self.settingsStatusField.textColor = [NSColor systemGreenColor];
     [self updateConfigurationLabels];
+    [self menuWillOpen:self.statusBarItem.menu];
     [self.settingsWindow orderOut:nil];
 
     if (self.isTransitioning) return;
@@ -990,18 +1106,51 @@ static NSString *L(NSString *english) {
 }
 
 - (NSString *)bundledLink {
-    NSString *path = [[NSBundle mainBundle] pathForResource:@"default" ofType:@"vless"];
+    return [self profileLinkAtPath:[[NSBundle mainBundle] pathForResource:@"default" ofType:@"vless"]];
+}
+
+- (NSString *)bundledHongKongLink {
+    return [self profileLinkAtPath:[[NSBundle mainBundle] pathForResource:@"hong-kong" ofType:@"vless"]];
+}
+
+- (NSString *)profileLinkAtPath:(NSString *)path {
     NSString *link = path ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL] : nil;
     link = [link stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     return link.length > 0 ? link : nil;
 }
 
-- (NSString *)savedLink {
-    NSData *data = [NSData dataWithContentsOfFile:[self linkPath]];
-    if (data) return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+- (NSString *)selectedProfile {
+    NSString *profile = [[NSUserDefaults standardUserDefaults] stringForKey:@"SelectedServer"];
+    return [profile isEqualToString:@"hk"] ? @"hk" : @"us";
+}
 
-    NSString *bundled = [self bundledLink];
-    if (bundled) return bundled;
+- (NSString *)selectedLinkPath {
+    return [[self appSupportPath] stringByAppendingPathComponent:
+            [[self selectedProfile] isEqualToString:@"hk"] ? @"connection-hk.vless" : @"connection-us.vless"];
+}
+
+- (NSString *)hongKongLinkPath {
+    return [[self appSupportPath] stringByAppendingPathComponent:@"connection-hk.vless"];
+}
+
+- (NSString *)profileLinkForName:(NSString *)profile {
+    if ([profile isEqualToString:@"hk"]) {
+        return [self profileLinkAtPath:[self hongKongLinkPath]] ?: [self bundledHongKongLink];
+    }
+    NSString *saved = [self profileLinkAtPath:[self selectedUsLinkPath]];
+    if (!saved.length) saved = [self profileLinkAtPath:[self linkPath]];
+    if (!saved.length) saved = [self bundledLink];
+    return saved;
+}
+
+- (NSString *)selectedUsLinkPath {
+    return [[self appSupportPath] stringByAppendingPathComponent:@"connection-us.vless"];
+}
+
+- (NSString *)savedLink {
+    NSString *link = [self profileLinkForName:[self selectedProfile]];
+    if (link.length) return link;
+    if ([[self selectedProfile] isEqualToString:@"hk"]) return nil;
 
     NSData *configData = [NSData dataWithContentsOfFile:[self configPath]];
     NSDictionary *config = configData ? [NSJSONSerialization JSONObjectWithData:configData options:0 error:NULL] : nil;
@@ -1026,7 +1175,7 @@ static NSString *L(NSString *english) {
         [NSURLQueryItem queryItemWithName:@"security" value:@"reality"],
         [NSURLQueryItem queryItemWithName:@"sni" value:reality[@"serverName"] ?: @""],
         [NSURLQueryItem queryItemWithName:@"fp" value:reality[@"fingerprint"] ?: @"chrome"],
-        [NSURLQueryItem queryItemWithName:@"pbk" value:reality[@"publicKey"] ?: @""],
+        [NSURLQueryItem queryItemWithName:@"pbk" value:reality[@"password"] ?: reality[@"publicKey"] ?: @""],
         [NSURLQueryItem queryItemWithName:@"sid" value:reality[@"shortId"] ?: @""],
         [NSURLQueryItem queryItemWithName:@"type" value:stream[@"network"] ?: @"tcp"]
     ];
