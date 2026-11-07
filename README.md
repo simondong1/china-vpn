@@ -49,7 +49,7 @@ Build the macOS app on macOS 12+ with Xcode:
 xcodebuild -project XrayVPN/XrayVPN.xcodeproj -scheme XrayVPN -configuration Release
 ```
 
-GitHub Actions embeds server settings from repository secrets: `DONGVPN_VLESS_LINK`, `DONGVPN_HK_VLESS_LINK`, `DONGVPN_CONTROL_URL`, and `DONGVPN_CONTROL_TOKEN`. Do not attach a configured DMG or Windows executable to public build artifacts; server credentials can be extracted from either app.
+GitHub Actions embeds server settings from repository secrets: `DONGVPN_VLESS_LINK`, `DONGVPN_HK_VLESS_LINK`, `DONGVPN_CONTROL_URL`, and `DONGVPN_CONTROL_TOKEN`. A successful build from `master` deploys its configured DMG to the password-protected site; it is not uploaded as a public GitHub artifact. Server credentials can be extracted from either app.
 
 Build the Windows client on Windows after provisioning the private files listed by the build script:
 

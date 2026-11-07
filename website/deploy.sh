@@ -11,8 +11,13 @@ case "$DONGVPN_PUBLIC_URL" in
   *) echo "DONGVPN_PUBLIC_URL must use HTTPS." >&2; exit 1 ;;
 esac
 
-SSH=(ssh -i "$DONGVPN_SSH_KEY" -o BatchMode=yes)
-SCP=(scp -i "$DONGVPN_SSH_KEY" -o BatchMode=yes)
+SSH_HOST_OPTIONS=()
+if [[ -n "${DONGVPN_SSH_KNOWN_HOSTS:-}" ]]; then
+  test -s "$DONGVPN_SSH_KNOWN_HOSTS"
+  SSH_HOST_OPTIONS=(-o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$DONGVPN_SSH_KNOWN_HOSTS")
+fi
+SSH=(ssh -i "$DONGVPN_SSH_KEY" -o BatchMode=yes "${SSH_HOST_OPTIONS[@]}")
+SCP=(scp -i "$DONGVPN_SSH_KEY" -o BatchMode=yes "${SSH_HOST_OPTIONS[@]}")
 REMOTE_DIR="/tmp/dongvpn-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 "${SSH[@]}" "$DONGVPN_SSH_TARGET" "mkdir -m 700 '$REMOTE_DIR'"
