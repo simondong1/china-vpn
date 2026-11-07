@@ -92,28 +92,25 @@ jobs:
         test -d build/DongVPN/DongVPN.app
         hdiutil create -volname "DongVPN" -srcfolder build/DongVPN -ov -format UDZO DongVPN.dmg
 
-    - name: Deploy configured DMG to the password-protected site
+    - name: Encrypt configured DMG for private transfer
       if: github.ref == 'refs/heads/master'
       env:
-        DONGVPN_SSH_TARGET: ${{ secrets.DONGVPN_SSH_TARGET }}
-        DONGVPN_SSH_KEY: ${{ secrets.DONGVPN_SSH_KEY }}
-        DONGVPN_SSH_KNOWN_HOSTS_ENTRY: ${{ secrets.DONGVPN_SSH_KNOWN_HOSTS }}
-        DONGVPN_PUBLIC_URL: https://52.34.245.131:8443
-        DONGVPN_DMG_PATH: ../XrayVPN/DongVPN.dmg
+        DONGVPN_ARTIFACT_KEY: ${{ secrets.DONGVPN_ARTIFACT_KEY }}
       run: |
         set -euo pipefail
-        test -n "$DONGVPN_SSH_TARGET"
-        test -n "$DONGVPN_SSH_KEY"
-        test -n "$DONGVPN_SSH_KNOWN_HOSTS_ENTRY"
-        key_path=$(mktemp "$RUNNER_TEMP/dongvpn-ssh-key.XXXXXX")
-        known_hosts_path=$(mktemp "$RUNNER_TEMP/dongvpn-known-hosts.XXXXXX")
-        trap 'rm -f "$key_path" "$known_hosts_path"' EXIT
-        printf '%s\n' "$DONGVPN_SSH_KEY" > "$key_path"
-        chmod 600 "$key_path"
-        printf '%s\n' "$DONGVPN_SSH_KNOWN_HOSTS_ENTRY" > "$known_hosts_path"
-        DONGVPN_SSH_KEY="$key_path" \
-          DONGVPN_SSH_KNOWN_HOSTS="$known_hosts_path" \
-          ./website/deploy.sh
+        test -n "$DONGVPN_ARTIFACT_KEY"
+        openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+          -in XrayVPN/DongVPN.dmg -out XrayVPN/DongVPN.dmg.enc \
+          -pass env:DONGVPN_ARTIFACT_KEY
+
+    - name: Upload encrypted DMG for maintainer deployment
+      if: github.ref == 'refs/heads/master'
+      uses: actions/upload-artifact@v7
+      with:
+        name: dongvpn-dmg-transfer-${{ github.run_id }}
+        path: XrayVPN/DongVPN.dmg.enc
+        retention-days: 1
+        if-no-files-found: error
 
     - name: Report Xcode failure
       if: failure()
